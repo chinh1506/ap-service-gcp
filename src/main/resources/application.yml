@@ -1,0 +1,7 @@
+spring:
+  application:
+    name: ap-service-gcp
+  main:
+    web-application-type: servlet
+server:
+  port: ${PORT:8080}
