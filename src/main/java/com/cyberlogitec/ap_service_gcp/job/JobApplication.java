@@ -1,7 +1,10 @@
 package com.cyberlogitec.ap_service_gcp.job;
 
+import com.cyberlogitec.ap_service_gcp.dto.CreateFileExternalRequest;
 import com.cyberlogitec.ap_service_gcp.job.extension.JobContext;
 import com.cyberlogitec.ap_service_gcp.job.extension.JobRunner;
+import com.cyberlogitec.ap_service_gcp.service.GcsService;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
@@ -15,27 +18,26 @@ public class JobApplication implements CommandLineRunner {
 
     private final JobRunner runner;
     private final ObjectMapper mapper;
+    private final GcsService gcsService;
 
-    public JobApplication(JobRunner runner, ObjectMapper mapper) {
+    public JobApplication(JobRunner runner, ObjectMapper mapper, GcsService gcsService) {
         this.runner = runner;
         this.mapper = mapper;
+        this.gcsService = gcsService;
     }
 
     @Override
     public void run(String... args) throws Exception {
 
         String jobName = System.getenv("JOB_NAME");
-        String payloadJson = System.getenv("JOB_PAYLOAD");
-
-        JobContext context = mapper.readValue(payloadJson, JobContext.class);
+        String jobPayloadId = System.getenv("JOB_PAYLOAD_ID");
+        byte[] bytes = this.gcsService.getFile("run-sources-ethereal-hub-483507-d4-asia-southeast1", jobPayloadId);
+        JobContext context = mapper.readValue(bytes, JobContext.class);
+//        CreateFileExternalRequest request= mapper.convertValue( context.getPayload(), CreateFileExternalRequest.class);
+        System.out.println("Job context: " + context);
 
         runner.run(jobName, context);
         System.exit(0);
     }
 
-//    public static void main(String[] args) {
-//        SpringApplication app = new SpringApplication(JobApplication.class);
-//        app.setAdditionalProfiles("job");
-//        app.run(args);
-//    }
 }

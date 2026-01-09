@@ -29,7 +29,7 @@ import java.util.Objects;
 @Configuration
 public class GoogleClientConfiguration {
     private static final String CREDENTIALS_FILE_PATH = "/credentials.json";
-    private final String APPLLICATION_NAME="cloud-run-app";
+    private final String APPLLICATION_NAME = "cloud-run-app";
 
 
     @Bean
@@ -39,6 +39,7 @@ public class GoogleClientConfiguration {
 
     @Bean
     public HttpRequestInitializer googleCredentials() throws IOException {
+
         GoogleCredentials credentials =
                 ServiceAccountCredentials
                         .fromStream(Objects.requireNonNull(GoogleClientConfiguration.class.getResourceAsStream(CREDENTIALS_FILE_PATH)))
@@ -46,13 +47,15 @@ public class GoogleClientConfiguration {
                                 SheetsScopes.SPREADSHEETS,
                                 DriveScopes.DRIVE
                         ));
-
+//        HttpRequestInitializer initializer= new HttpCredentialsAdapter(credentials);
+//        initializer.
         return new HttpCredentialsAdapter(credentials);
     }
 
 
     @Bean
     public Sheets sheets(HttpRequestInitializer initializer) throws Exception {
+
         return new Sheets.Builder(
                 GoogleNetHttpTransport.newTrustedTransport(),
                 GsonFactory.getDefaultInstance(),
@@ -62,10 +65,17 @@ public class GoogleClientConfiguration {
 
     @Bean
     public Drive drive(HttpRequestInitializer initializer) throws Exception {
+
+        HttpRequestInitializer requestInitializer = httpRequest -> {
+            initializer.initialize(httpRequest);
+            httpRequest.setConnectTimeout(60000);  // 3 minutes connect timeout
+            httpRequest.setReadTimeout(2 * 60000);  // 3 minutes read timeout
+        };
+
         return new Drive.Builder(
                 GoogleNetHttpTransport.newTrustedTransport(),
                 GsonFactory.getDefaultInstance(),
-                initializer
+                requestInitializer
         ).setApplicationName(APPLLICATION_NAME).build();
     }
 }

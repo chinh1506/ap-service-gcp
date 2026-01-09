@@ -9,13 +9,16 @@ import com.google.cloud.run.v2.RunJobRequest;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 
 @Service
 public class CloudRunJobService {
     private final ObjectMapper objectMapper;
+    private final GcsService gcsService;
 
-    public CloudRunJobService(ObjectMapper objectMapper) {
+    public CloudRunJobService(ObjectMapper objectMapper, GcsService gcsService) {
         this.objectMapper = objectMapper;
+        this.gcsService = gcsService;
     }
 
     public void runCloudRunJob(String jobName, JobContext context) throws IOException {
@@ -25,21 +28,23 @@ public class CloudRunJobService {
         String cloudRunJobName = System.getenv("CLOUD_RUN_JOB_NAME");
 
         try (JobsClient jobsClient = JobsClient.create()) {
+            this.gcsService.upload(context.getTaskId(), objectMapper.writeValueAsString(context).getBytes(StandardCharsets.UTF_8));
+
             // ENV VARS
             EnvVar jobNameEnv = EnvVar.newBuilder()
                     .setName("JOB_NAME")
                     .setValue(jobName)
                     .build();
 
-            EnvVar payloadEnv = EnvVar.newBuilder()
-                    .setName("JOB_PAYLOAD")
-                    .setValue(objectMapper.writeValueAsString(context))
+            EnvVar payloadIdEnv = EnvVar.newBuilder()
+                    .setName("JOB_PAYLOAD_ID")
+                    .setValue(context.getTaskId())
                     .build();
 
             RunJobRequest.Overrides.ContainerOverride containerOverride =
                     RunJobRequest.Overrides.ContainerOverride.newBuilder()
                             .addEnv(jobNameEnv)
-                            .addEnv(payloadEnv)
+                            .addEnv(payloadIdEnv)
                             .build();
 
             RunJobRequest request =

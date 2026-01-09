@@ -14,6 +14,8 @@ import com.google.api.services.sheets.v4.model.ClearValuesRequest;
 import com.google.api.services.sheets.v4.model.Spreadsheet;
 import com.google.api.services.sheets.v4.model.ValueRange;
 import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
@@ -48,30 +50,36 @@ public class CreateChildFoldersExternal implements JobPlugin {
 
         String totalTasksStr = System.getenv("CLOUD_RUN_TASK_COUNT");
         String currentTaskIndexStr = System.getenv("CLOUD_RUN_TASK_INDEX");
+        System.out.println(currentTaskIndexStr);
         int currentTaskIndex = Integer.parseInt(currentTaskIndexStr);
         int totalTasks = Integer.parseInt(totalTasksStr);
 
         TaskPartitioner.Partition partition = TaskPartitioner.calculatePartition(payload.getEndRow() - payload.getStartRow() + 1, totalTasks, currentTaskIndex);
+        System.out.println(partition);
 
-        if (partition.start < 0 || partition.end > totalTasks || partition.end < 0) {
+        if (partition.start < 0 || partition.end < 0) {
             System.exit(0);
         }
 
         this.createAe2ChildFoldersExternal(payload.getCopyFolderId()
                 , partition.start
                 , partition.end
-                , GlobalSettingBKG.builder()
-                        .scriptSettingsPart1(scriptSettingLoader.getSettingsMap(payload.getWorkFileId()))
-                        .scriptSettingsPart2(scriptSettingLoader.getSettingsMap(payload.getWorkFilePart2Id()))
-                        .workFileId(payload.getWorkFileId())
-                        .build()
+                , payload.getGs()
                 , payload.getFileToShareId()
-                , payload.getFileToShareName());
+                , payload.getFileToShareName()
+                , payload.getFolderStructure()
+                , payload.getFileUnits()
+                , payload.getFileUnitsAccess()
+                , payload.getFileUnitContractData()
+        );
+
 
         System.exit(0);
     }
 
     // Class nội bộ để giữ thông tin thư mục (thay thế cho JS Object)
+    @Data
+    @Builder
     public static class FolderInfo {
         String id;
         String url;
@@ -88,17 +96,21 @@ public class CreateChildFoldersExternal implements JobPlugin {
             int endRow,
             GlobalSettingBKG gs, // Giả lập đối tượng settings
             String fileToShareSsID,
-            String fileToShareName
+            String fileToShareName,
+            FolderStructure existingStructure,
+            List<List<Object>> fileUnits,
+            List<List<Object>> fileUnitsAccess,
+            List<List<Object>> fileUnitContractData
+
     ) throws IOException {
 
         System.out.println("Chuẩn bị xử lý từ " + startRow + " - " + endRow);
 
         // 1. Đọc cấu trúc thư mục hiện có
-        FolderStructure existingStructure = this.driveServiceHelper.getExistingFolderStructure(copyFolderId);
         Map<String, FolderInfo> folderMap = existingStructure.getFolderMap();
         Map<String, FolderInfo> archiveMap = existingStructure.getArchiveMap();
 
-        System.out.println("Cấu trúc thư mục hiện có đã được tải.");
+//        System.out.println("Cấu trúc thư mục hiện có đã được tải.");
 
         // 2. Tải cài đặt và dữ liệu ban đầu
         String workFileId = gs.getWorkFileId();
@@ -109,15 +121,15 @@ public class CreateChildFoldersExternal implements JobPlugin {
         String apBookingDataRange = scriptSettingsPart2.getAsString("fileToShare_ApBookingDataRange");
 
         // Giả lập logic lấy max column
-        int coEditorsSheetLastCol = getSheetColumnCount(workFileId, coEditorsSheetName);
 
-        String distList_DataRange = scriptSettings.getAsString("control_MakeCopy_DistList_DataRange_External");
-        List<List<Object>> fileUnits = this.sheetServiceHelper.inputAPI(workFileId, distList_DataRange);
+
+//        String distList_DataRange = scriptSettings.getAsString("control_MakeCopy_DistList_DataRange_External");
+//        List<List<Object>> fileUnits = this.sheetServiceHelper.inputAPI(workFileId, distList_DataRange);
         String folderSuffix = "(" + scriptSettings.getAsString("control_MakeCopy_TradeName") + "_Booking Comparison Tool)";
         String masterFOEditorDataRange = scriptSettings.getAsString("control_MakeCopy_FOEditors_DataRange_External");//control_MakeCopy_FileUnitContract_DataRange_External
 
-        List<List<Object>> fileUnitsAccess = this.sheetServiceHelper.inputAPI(workFileId, masterFOEditorDataRange, coEditorsSheetLastCol);
-        List<List<Object>> fileUnitContractData = this.sheetServiceHelper.inputAPI(workFileId, scriptSettings.getAsString("control_MakeCopy_FileUnitContract_DataRange_External"));
+//        List<List<Object>> fileUnitsAccess = this.sheetServiceHelper.inputAPI(workFileId, masterFOEditorDataRange, coEditorsSheetLastCol);
+//        List<List<Object>> fileUnitContractData = this.sheetServiceHelper.inputAPI(workFileId, scriptSettings.getAsString("control_MakeCopy_FileUnitContract_DataRange_External"));
 
         int titleRow = scriptSettings.getAsInt("control_MakeCopy_FOSettings_TitleRow");
         String titleRowRangeA1 = "'" + coEditorsSheetName + "'!" + titleRow + ":" + titleRow;
@@ -134,7 +146,7 @@ public class CreateChildFoldersExternal implements JobPlugin {
 
         int email_start_col_index = masterCOEditorSheet_cols.indexOf(scriptSettings.getAsString("control_MakeCopy_EmailStartColName"));
 
-        for (int i = startRow; i < endRow; i++) {
+        for (int i = startRow; i <= endRow; i++) {
             if (i >= fileUnits.size()) break;
 
             List<Object> currentRow = fileUnits.get(i);
@@ -233,6 +245,7 @@ public class CreateChildFoldersExternal implements JobPlugin {
         int safeEndRow = Math.min(endRow, fileUnits.size());
         if (startRow < safeEndRow) {
             List<List<Object>> dataToWrite = new ArrayList<>(fileUnits.subList(startRow, safeEndRow));
+            String distList_DataRange = scriptSettings.getAsString("control_MakeCopy_DistList_DataRange_External");
             String rangeToWrite = Utilities.calculateSubRangeA1(distList_DataRange, startRow, safeEndRow);
 
             if (rangeToWrite != null && !dataToWrite.isEmpty()) {
@@ -268,15 +281,6 @@ public class CreateChildFoldersExternal implements JobPlugin {
         this.sheetServiceHelper.outputAPIRows(dataRange, filteredData, targetFileId);
     }
 
-
-    private int getSheetColumnCount(String spreadsheetId, String sheetName) throws IOException {
-        Spreadsheet spreadsheet = sheetsService.spreadsheets().get(spreadsheetId)
-                .setRanges(Collections.singletonList("'" + sheetName + "'"))
-                .setFields("sheets(properties(gridProperties(columnCount)))")
-                .execute();
-        if (spreadsheet.getSheets().isEmpty()) return 0;
-        return spreadsheet.getSheets().get(0).getProperties().getGridProperties().getColumnCount();
-    }
 
     private void ensureSize(List<Object> list, int size) {
         while (list.size() < size) {
