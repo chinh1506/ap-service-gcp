@@ -11,7 +11,7 @@ import java.util.regex.Pattern;
 public class Utilities {
     public  <T> T retry(ApiAction<T> action, int maxRetries) throws IOException {
         int attempt = 0;
-        long waitTime = 1000;
+        long waitTime = 3000;
 
         while (true) {
             try {

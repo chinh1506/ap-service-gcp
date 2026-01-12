@@ -2,6 +2,7 @@ package com.cyberlogitec.ap_service_gcp.service;
 
 import com.cyberlogitec.ap_service_gcp.job.implement.bkg.CreateChildFoldersExternal;
 import com.cyberlogitec.ap_service_gcp.model.FolderStructure;
+import com.cyberlogitec.ap_service_gcp.util.Utilities;
 import com.google.api.client.googleapis.batch.BatchRequest;
 import com.google.api.client.googleapis.batch.json.JsonBatchCallback;
 import com.google.api.client.googleapis.json.GoogleJsonError;
@@ -123,17 +124,23 @@ public class DriveServiceHelper {
     }
 
     /**
-     * Copy và Move File
-     */
+     * Make copy a file and put it into a folder
+     * @param  sourceFileId file's id of a source file
+     * @param  targetFolderId folder's id will keep the new file
+     * @param  newFileName File's name of the new file
+     * @return New file id
+     * */
     public String copyAndMoveFile(String sourceFileId, String targetFolderId, String newFileName) throws IOException {
         File resource = new File();
         resource.setName(newFileName);
         resource.setParents(Collections.singletonList(targetFolderId));
 
-        File copiedFile = driveService.files().copy(sourceFileId, resource)
-                .setSupportsAllDrives(true)
-                .setFields("id")
-                .execute();
+        File copiedFile = Utilities.retry(()->{
+            return driveService.files().copy(sourceFileId, resource)
+                    .setSupportsAllDrives(true)
+                    .setFields("id")
+                    .execute();
+        },3);
 
         return copiedFile.getId();
     }

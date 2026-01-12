@@ -30,4 +30,25 @@ public class GcsService {
 
         return blob.getContent();
     }
+
+    /**
+     * Hàm xóa file trên GCS
+     * @param fileName Tên file (bao gồm cả folder nếu có, ví dụ: "data/report.json")
+     * @return true nếu xóa thành công, false nếu file không tồn tại
+     */
+    public boolean deleteFile(String fileName) {
+        if (fileName == null || fileName.isEmpty()) {
+            return false;
+        }
+        try {
+            BlobId blobId = BlobId.of(bucketName, fileName);
+            boolean deleted = storage.delete(blobId);
+
+            return deleted;
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
 }

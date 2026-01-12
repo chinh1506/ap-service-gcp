@@ -6,13 +6,11 @@ import com.cyberlogitec.ap_service_gcp.job.extension.JobPlugin;
 import com.cyberlogitec.ap_service_gcp.model.FolderStructure;
 import com.cyberlogitec.ap_service_gcp.service.DriveServiceHelper;
 import com.cyberlogitec.ap_service_gcp.service.SheetServiceHelper;
-import com.cyberlogitec.ap_service_gcp.util.*;
+import com.cyberlogitec.ap_service_gcp.util.GlobalSettingBKG;
+import com.cyberlogitec.ap_service_gcp.util.ScriptSetting;
+import com.cyberlogitec.ap_service_gcp.util.TaskPartitioner;
+import com.cyberlogitec.ap_service_gcp.util.Utilities;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.api.services.drive.Drive;
-import com.google.api.services.sheets.v4.Sheets;
-import com.google.api.services.sheets.v4.model.ClearValuesRequest;
-import com.google.api.services.sheets.v4.model.Spreadsheet;
-import com.google.api.services.sheets.v4.model.ValueRange;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -21,7 +19,6 @@ import org.springframework.stereotype.Component;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -30,10 +27,8 @@ import java.util.stream.Collectors;
 @Profile("job")
 @AllArgsConstructor
 public class CreateChildFoldersExternal implements JobPlugin {
-    private final Sheets sheetsService;
     private final SheetServiceHelper sheetServiceHelper;
     private final DriveServiceHelper driveServiceHelper;
-    private final ScriptSettingLoader scriptSettingLoader;
     private final ObjectMapper objectMapper;
 
 
@@ -71,6 +66,7 @@ public class CreateChildFoldersExternal implements JobPlugin {
                 , payload.getFileUnits()
                 , payload.getFileUnitsAccess()
                 , payload.getFileUnitContractData()
+                , payload.getApBookingData()
         );
 
 
@@ -100,57 +96,28 @@ public class CreateChildFoldersExternal implements JobPlugin {
             FolderStructure existingStructure,
             List<List<Object>> fileUnits,
             List<List<Object>> fileUnitsAccess,
-            List<List<Object>> fileUnitContractData
+            List<List<Object>> fileUnitContractData,
+            List<List<Object>> apBookingData
 
     ) throws IOException {
-
         System.out.println("Chuẩn bị xử lý từ " + startRow + " - " + endRow);
-
-        // 1. Đọc cấu trúc thư mục hiện có
         Map<String, FolderInfo> folderMap = existingStructure.getFolderMap();
         Map<String, FolderInfo> archiveMap = existingStructure.getArchiveMap();
-
-//        System.out.println("Cấu trúc thư mục hiện có đã được tải.");
-
         // 2. Tải cài đặt và dữ liệu ban đầu
         String workFileId = gs.getWorkFileId();
         ScriptSetting scriptSettingsPart2 = gs.getScriptSettingsPart2();
         ScriptSetting scriptSettings = gs.getScriptSettingsPart1();
-
-        String coEditorsSheetName = "Distribution List - External";
         String apBookingDataRange = scriptSettingsPart2.getAsString("fileToShare_ApBookingDataRange");
 
-        // Giả lập logic lấy max column
-
-
-//        String distList_DataRange = scriptSettings.getAsString("control_MakeCopy_DistList_DataRange_External");
-//        List<List<Object>> fileUnits = this.sheetServiceHelper.inputAPI(workFileId, distList_DataRange);
         String folderSuffix = "(" + scriptSettings.getAsString("control_MakeCopy_TradeName") + "_Booking Comparison Tool)";
-        String masterFOEditorDataRange = scriptSettings.getAsString("control_MakeCopy_FOEditors_DataRange_External");//control_MakeCopy_FileUnitContract_DataRange_External
 
-//        List<List<Object>> fileUnitsAccess = this.sheetServiceHelper.inputAPI(workFileId, masterFOEditorDataRange, coEditorsSheetLastCol);
-//        List<List<Object>> fileUnitContractData = this.sheetServiceHelper.inputAPI(workFileId, scriptSettings.getAsString("control_MakeCopy_FileUnitContract_DataRange_External"));
-
-        int titleRow = scriptSettings.getAsInt("control_MakeCopy_FOSettings_TitleRow");
-        String titleRowRangeA1 = "'" + coEditorsSheetName + "'!" + titleRow + ":" + titleRow;
-
-        List<Object> masterCOEditorSheet_cols = new ArrayList<>();
-        try {
-            ValueRange result = sheetsService.spreadsheets().values().get(workFileId, titleRowRangeA1).execute();
-            if (result.getValues() != null && !result.getValues().isEmpty()) {
-                masterCOEditorSheet_cols = result.getValues().get(0);
-            }
-        } catch (Exception e) {
-            throw new RuntimeException("Lỗi đọc hàng tiêu đề: " + e.getMessage());
-        }
-
-        int email_start_col_index = masterCOEditorSheet_cols.indexOf(scriptSettings.getAsString("control_MakeCopy_EmailStartColName"));
+        int email_start_col_index = scriptSettings.getAsInt("control_MakeCopy_EmailStartColIndex");
 
         for (int i = startRow; i <= endRow; i++) {
             if (i >= fileUnits.size()) break;
 
             List<Object> currentRow = fileUnits.get(i);
-            String name = (currentRow.size() > 0) ? String.valueOf(currentRow.get(0)) : "";
+            String name = (!currentRow.isEmpty()) ? String.valueOf(currentRow.get(0)) : "";
 
             if (name == null || name.isEmpty()) {
                 ensureSize(currentRow, 3);
@@ -191,7 +158,7 @@ public class CreateChildFoldersExternal implements JobPlugin {
             // 3b. Xử lý logic thư mục
             if (folderMap.containsKey(folderName)) {
                 // Đã tồn tại
-                System.out.println("...Thư mục đã tồn tại.");
+                System.out.println("...The folder have existed: .");
                 FolderInfo existingFolder = folderMap.get(folderName);
                 countryFolderId = existingFolder.id;
                 countryFolderUrl = existingFolder.url;
@@ -202,12 +169,12 @@ public class CreateChildFoldersExternal implements JobPlugin {
                     this.driveServiceHelper.archiveOldFiles(countryFolderId, archiveFolder.id);
                 } else {
                     archiveFolderUrl = "ERROR: NOT FOUND";
-                    System.out.println("...Không tìm thấy thư mục lưu trữ: " + archiveFolderName);
+                    System.out.println("...Cannot find archive folder: " + archiveFolderName);
                 }
 
             } else {
                 // Tạo mới
-                System.out.println("...Tạo thư mục mới.");
+                System.out.println("...Create new folder: .");
                 FolderStructure newStruct = this.driveServiceHelper.createNewFolderStructure(folderName, archiveFolderName, copyFolderId, null, workFileId);
 
                 countryFolderId = newStruct.getFolderMap().get("main").id;
@@ -232,7 +199,7 @@ public class CreateChildFoldersExternal implements JobPlugin {
             System.out.println("..Sao chép hoàn tất: " + newFileId);
 
             // 3d. Cập nhật dữ liệu
-            populateNewSheetData(fileToShareSsID, newFileId, apBookingDataRange, fileUnitContract);
+            populateNewSheetData(apBookingData, newFileId, apBookingDataRange, fileUnitContract);
 
             // Update editors
             this.driveServiceHelper.foldersUpdate(workFileId, countryFolderId, emails);
@@ -259,11 +226,7 @@ public class CreateChildFoldersExternal implements JobPlugin {
     /**
      * Populate Data
      */
-    private void populateNewSheetData(String sourceFileId, String targetFileId, String dataRange, List<String> filterContracts) throws IOException {
-        // 1. Đọc
-        List<List<Object>> apBookingData = this.sheetServiceHelper.inputAPI(sourceFileId, dataRange);
-
-        // 2. Lọc
+    private void populateNewSheetData(List<List<Object>> apBookingData, String targetFileId, String dataRange, List<String> filterContracts) throws IOException {
         List<List<Object>> filteredData = apBookingData.stream()
                 .filter(row -> {
                     if (row.isEmpty()) return false;
@@ -273,9 +236,9 @@ public class CreateChildFoldersExternal implements JobPlugin {
                 })
                 .collect(Collectors.toList());
 
-        // 3. Xóa cũ
-        ClearValuesRequest clearRequest = new ClearValuesRequest();
-        sheetsService.spreadsheets().values().clear(targetFileId, dataRange, clearRequest).execute();
+
+//        sheetsService.spreadsheets().values().clear(targetFileId, dataRange, clearRequest).execute();
+        this.sheetServiceHelper.clearRange(targetFileId, dataRange);
 
         // 4. Ghi mới
         this.sheetServiceHelper.outputAPIRows(dataRange, filteredData, targetFileId);

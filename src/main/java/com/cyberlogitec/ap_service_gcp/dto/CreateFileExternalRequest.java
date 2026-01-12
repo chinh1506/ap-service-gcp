@@ -22,6 +22,6 @@ public class CreateFileExternalRequest {
     private List<List<Object>> fileUnits;
     private List<List<Object>> fileUnitsAccess;
     private List<List<Object>> fileUnitContractData;
-
+    private List<List<Object>> apBookingData;
 
 }

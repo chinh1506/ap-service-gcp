@@ -3,6 +3,7 @@ package com.cyberlogitec.ap_service_gcp.service;
 import com.cyberlogitec.ap_service_gcp.util.Utilities;
 import com.google.api.services.sheets.v4.Sheets;
 import com.google.api.services.sheets.v4.model.BatchUpdateValuesRequest;
+import com.google.api.services.sheets.v4.model.ClearValuesRequest;
 import com.google.api.services.sheets.v4.model.ValueRange;
 import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -16,12 +17,13 @@ import java.util.List;
 @AllArgsConstructor
 public class SheetServiceHelper {
     private final Sheets sheetsService;
+    private final GcsService gcsService;
 
     /**
      * Write data to sheet by BatchUpdate
      *
      * @param outputRange   A1 range (ex: "Sheet1!A1:B2")
-     * @param outputValues  matrix array
+     * @param outputValues  List of arrays
      * @param spreadsheetId spreadsheet's id
      */
     public void outputAPIRows(String outputRange, List<List<Object>> outputValues, String spreadsheetId) throws IOException {
@@ -41,23 +43,27 @@ public class SheetServiceHelper {
         }, 3);
     }
 
+    public void clearRange(String spreadsheetId, String range) throws IOException {
+        // 3. Xóa cũ
+        ClearValuesRequest clearRequest = new ClearValuesRequest();
+        Utilities.retry(() -> {
+            return this.sheetsService.spreadsheets().values().clear(spreadsheetId, range, clearRequest).execute();
+        }, 3);
+    }
 
     public List<List<Object>> inputAPI(String spreadsheetId, String inputRange) throws IOException {
-        // Gọi hàm chính với dataLength = -1 (hoặc 0) để báo hiệu không cần padding
         return inputAPI(spreadsheetId, inputRange, -1);
     }
 
     /**
-     * Đọc dữ liệu từ Sheet và chuẩn hóa độ dài hàng (Padding).
+     * Read sheet and normalize the length of rows
      *
-     * @param spreadsheetId ID của trang tính.
-     * @param inputRange    Dải ô cần đọc (VD: "Sheet1!A1:C10").
-     * @param dataLength    Độ dài mong muốn của mỗi hàng (số cột).
-     * @return Danh sách các hàng đã được chuẩn hóa.
+     * @param spreadsheetId Spreadsheet's ID
+     * @param inputRange    Range to read (Ex: "Sheet1!A1:C10").
+     * @param dataLength    the expected length for each row
+     * @return list of row was normalized
      */
     public List<List<Object>> inputAPI(String spreadsheetId, String inputRange, int dataLength) throws IOException {
-
-        // 1. Gọi API lấy dữ liệu (có Retry)
         ValueRange response = Utilities.retry(() ->
                         sheetsService.spreadsheets().values()
                                 .get(spreadsheetId, inputRange)
@@ -65,22 +71,15 @@ public class SheetServiceHelper {
                 , 3);
 
         List<List<Object>> values = response.getValues();
-
-        // 2. Kiểm tra dữ liệu
         if (values == null) {
-            return new ArrayList<>(); // Trả về list rỗng nếu không có dữ liệu
+            return new ArrayList<>();
         }
 
-        // 3. Chuẩn hóa độ dài (Padding)
-        // Tương đương: map(r => r.length < dataLength ? [...r, ...Array(...)] : r)
         for (List<Object> row : values) {
-            // Google Client Library thường trả về ArrayList có thể thay đổi kích thước.
-            // Nếu row ngắn hơn dataLength, thêm chuỗi rỗng vào.
             while (row.size() < dataLength) {
-                row.add(""); // Thêm ô trống
+                row.add("");
             }
         }
-
         return values;
     }
 

@@ -2,14 +2,14 @@ package com.cyberlogitec.ap_service_gcp.service;
 
 import com.cyberlogitec.ap_service_gcp.job.extension.JobContext;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.cloud.run.v2.EnvVar;
-import com.google.cloud.run.v2.JobName;
-import com.google.cloud.run.v2.JobsClient;
-import com.google.cloud.run.v2.RunJobRequest;
+import com.google.api.gax.longrunning.OperationFuture;
+import com.google.cloud.run.v2.*;
+import com.google.longrunning.Operation;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.ExecutionException;
 
 @Service
 public class CloudRunJobService {
@@ -27,7 +27,12 @@ public class CloudRunJobService {
         String region = System.getenv("GOOGLE_CLOUD_REGION");
         String cloudRunJobName = System.getenv("CLOUD_RUN_JOB_NAME");
 
-        try (JobsClient jobsClient = JobsClient.create()) {
+        // 3. Vẫn bắt buộc phải set Endpoint
+        JobsSettings.Builder settingsBuilder = JobsSettings.newHttpJsonBuilder();
+        String endpoint = region + "-run.googleapis.com:443";
+        settingsBuilder.setEndpoint(endpoint);
+
+        try (JobsClient jobsClient = JobsClient.create(settingsBuilder.build())) {
             this.gcsService.upload(context.getTaskId(), objectMapper.writeValueAsString(context).getBytes(StandardCharsets.UTF_8));
 
             // ENV VARS
@@ -61,7 +66,18 @@ public class CloudRunJobService {
                             .build();
 
             // async trigger
-            jobsClient.runJobAsync(request);
+
+            OperationFuture<Execution, Execution> future = jobsClient.runJobAsync(request);
+            Execution execution = future.get();
+            int succeededCount = execution.getSucceededCount();
+
+            if (succeededCount == context.getTaskCount()) {
+                System.out.println("Job " + jobName + " has completed successfully");
+                this.gcsService.deleteFile(context.getTaskId());
+            }
+
+        } catch (Exception e) {
+            throw new RuntimeException(e);
         }
     }
 }
