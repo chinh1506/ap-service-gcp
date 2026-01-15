@@ -43,22 +43,6 @@ public class ScriptSettingLoader {
         if (values == null || values.isEmpty()) {
             return new ScriptSetting(map);
         }
-
-//        for (List<Object> row : values) {
-//            // Đảm bảo hàng có dữ liệu ở cột Key (cột F)
-//            if (row != null && !row.isEmpty()) {
-//                String key = row.get(0).toString();
-//
-//                // Kiểm tra xem có cột Value (cột G) không, nếu không thì để chuỗi rỗng
-//                String value = (row.size() > 1 && row.get(1) != null)
-//                        ? row.get(1).toString()
-//                        : "";
-//
-//                map.put(key, value);
-//            }
-//        }
-
-        // --- CÁCH 2: Dùng Java 8 Stream (Giống reduce trong JS) ---
         map = values.stream()
                 .filter(row -> row != null && !row.isEmpty())
                 .collect(Collectors.toMap(

@@ -11,7 +11,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @Builder
 public class JobContext {
-    private String taskId;
+    private String jobId;
     private Object payload;
     private int taskCount = 1;
 }

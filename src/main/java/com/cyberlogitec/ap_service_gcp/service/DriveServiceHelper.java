@@ -23,6 +23,8 @@ import java.util.stream.Collectors;
 public class DriveServiceHelper {
     private final Drive driveService;
 
+
+
     /**
      * Di chuyển tệp vào thư mục lưu trữ
      */
@@ -97,7 +99,7 @@ public class DriveServiceHelper {
 
             // Tạo query OR
             String parentQuery = batchIds.stream()
-                    .map(id -> "'" + id + "' in parents")
+                    .map(id -> "('" + id + "' in parents)")
                     .collect(Collectors.joining(" or "));
 
             String archivePageToken = null;
@@ -105,6 +107,10 @@ public class DriveServiceHelper {
                 Drive.Files.List archiveRequest = driveService.files().list()
                         .setQ("(" + parentQuery + ") and mimeType = 'application/vnd.google-apps.folder' and trashed = false")
                         .setFields("files(id, name, webViewLink), nextPageToken")
+                        .setPageSize(500)
+//                        .setCorpora(parentFolderId)
+                        .setOrderBy("createdTime asc")
+                        .setCorpora("allDrives")
                         .setSupportsAllDrives(true)
                         .setIncludeItemsFromAllDrives(true);
 
@@ -388,5 +394,7 @@ public class DriveServiceHelper {
         String role = p.getRole();
         return role.equals("writer") || role.equals("organizer") || role.equals("fileOrganizer");
     }
+
+
 
 }

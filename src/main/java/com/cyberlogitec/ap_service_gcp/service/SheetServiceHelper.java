@@ -2,6 +2,7 @@ package com.cyberlogitec.ap_service_gcp.service;
 
 import com.cyberlogitec.ap_service_gcp.util.Utilities;
 import com.google.api.services.sheets.v4.Sheets;
+import com.google.api.services.sheets.v4.model.BatchGetValuesResponse;
 import com.google.api.services.sheets.v4.model.BatchUpdateValuesRequest;
 import com.google.api.services.sheets.v4.model.ClearValuesRequest;
 import com.google.api.services.sheets.v4.model.ValueRange;
@@ -9,9 +10,7 @@ import lombok.AllArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 
 @Service
 @AllArgsConstructor
@@ -41,6 +40,34 @@ public class SheetServiceHelper {
                     .batchUpdate(spreadsheetId, requestBody)
                     .execute();
         }, 3);
+    }
+
+
+    public void batchOutputAPIRows(List<String> outputRanges,
+                                   List<List<List<Object>>> outputValues,
+                                   String spreadsheetId) throws IOException {
+
+        if (outputRanges.size() != outputValues.size()) {
+            throw new IllegalArgumentException("Number of output ranges does not match number of output values");
+        }
+
+        List<ValueRange> data = new ArrayList<>();
+
+        for (int i = 0; i < outputRanges.size(); i++) {
+            ValueRange vr = new ValueRange()
+                    .setRange(outputRanges.get(i))      // range: outputRange
+                    .setMajorDimension("ROWS")          // majorDimension: 'ROWS'
+                    .setValues(outputValues.get(i));    // values: outputValues
+            data.add(vr);
+        }
+
+        BatchUpdateValuesRequest body = new BatchUpdateValuesRequest()
+                .setValueInputOption("USER_ENTERED")
+                .setData(data);
+
+        Utilities.retry(() -> this.sheetsService.spreadsheets().values()
+                .batchUpdate(spreadsheetId, body)
+                .execute(), 3);
     }
 
     public void clearRange(String spreadsheetId, String range) throws IOException {
@@ -81,6 +108,48 @@ public class SheetServiceHelper {
             }
         }
         return values;
+    }
+
+    /**
+     * Retrieves multiple ranges in ONE quota unit and maps them by range name.
+     *
+     * @param spreadsheetId The ID of your spreadsheet.
+     * @param ranges        List of ranges like ["Sheet1!A1:B5", "Sheet2!C10:D15"].
+     * @return Map<String, List < List < Object>>> Key is range name, Value is 2D array data.
+     */
+    public Map<String, List<List<Object>>> getMappedBatchData(String spreadsheetId, List<String> ranges) throws IOException {
+        // 1. Gọi API batchGet (Chỉ tốn 1 đơn vị Quota Read)
+        BatchGetValuesResponse response = Utilities.retry(() -> sheetsService.spreadsheets().values()
+                .batchGet(spreadsheetId)
+                .setRanges(ranges)
+                .setValueRenderOption("FORMATTED_VALUE") // Giống Apps Script
+                .execute(), 3);
+
+        Map<String, List<List<Object>>> dataMap = new HashMap<>();
+        List<ValueRange> returnedRanges = response.getValueRanges();
+
+        if (returnedRanges != null) {
+            // Google đảm bảo danh sách trả về có thứ tự khớp 1-1 với danh sách 'ranges' đầu vào
+            // Nên ta dùng vòng lặp theo index để map đúng Key gốc.
+            for (int i = 0; i < returnedRanges.size(); i++) {
+
+                // Logic tương đương: const originalKey = ranges[index];
+                String originalKey = ranges.get(i);
+
+                ValueRange rangeObj = returnedRanges.get(i);
+
+                // Logic tương đương: rangeObj.values || []
+                List<List<Object>> values = rangeObj.getValues();
+                if (values == null) {
+                    values = Collections.emptyList();
+                }
+
+                dataMap.put(originalKey, values);
+            }
+        }
+
+        return dataMap;
+
     }
 
 

@@ -62,4 +62,12 @@ public class Utilities {
         String sheetPrefix = (sheetName != null) ? "'" + sheetName + "'!" : "";
         return sheetPrefix + startCol + absPrefix + newStartRow + ":" + endCol + absPrefix + newEndRow;
     }
+     public void logMemory(String stage) {
+        Runtime runtime = Runtime.getRuntime();
+        long usedMem = (runtime.totalMemory() - runtime.freeMemory()) / (1024 * 1024);
+        long maxMem = runtime.maxMemory() / (1024 * 1024);
+
+        // In ra console (Cloud Run Logs sẽ bắt được)
+        System.out.println("📊 MEMORY [" + stage + "]: Đang dùng " + usedMem + "MB / Tối đa JVM được cấp " + maxMem + "MB");
+    }
 }
