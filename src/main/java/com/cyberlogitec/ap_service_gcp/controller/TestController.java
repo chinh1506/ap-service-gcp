@@ -15,8 +15,6 @@ import java.util.Map;
 @RestController
 
 public class TestController {
-    @Value("${NAME:World}")
-    String name;
     private final Sheets sheetsService;
     private final DriveServiceHelper driveServiceHelper;
     private final CloudRunJobService cloudRunJobService;

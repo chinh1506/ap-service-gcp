@@ -30,7 +30,7 @@ public class BookingJobService {
     private final GcsService gcsService;
 
     public void prepareToCreateChildFoldersExternal(Object payload) throws IOException {
-        CreateFileExternalRequest createFileExternalRequest = objectMapper.convertValue(payload, CreateFileExternalRequest.class);
+        CreateFileExternalRequest createFileExternalRequest = this.objectMapper.convertValue(payload, CreateFileExternalRequest.class);
         FolderStructure existingStructure = this.driveServiceHelper.getExistingFolderStructure(createFileExternalRequest.getCopyFolderId());
 
         String workFileId = createFileExternalRequest.getWorkFileId();
@@ -65,7 +65,7 @@ public class BookingJobService {
         Utilities.logMemory("Before set data to context");
         JobContext context = new JobContext();
         context.setJobId(UUID.randomUUID().toString());
-        context.setTaskCount(10);
+        context.setTaskCount(createFileExternalRequest.getTaskCount());
         context.setPayload(createFileExternalRequest);
         Utilities.logMemory("Before runCloudRunJob");
         this.cloudRunJobService.runCloudRunJob("CreateChildFoldersExternal", context);

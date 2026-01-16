@@ -24,12 +24,11 @@ public class BookingJobController {
     public ResponseEntity<?> createChildFoldersExternal(@RequestBody Object payload) throws Exception {
         Utilities.logMemory("Begin CreateChildFoldersExternal");
         this.bookingJobService.prepareToCreateChildFoldersExternal(payload);
-
         return ResponseEntity.accepted().build();
     }
 
     @PostMapping("/job-result")
-    public ResponseEntity<String> handleJobResult(@RequestBody Map<String, Object> pubSubMessage) throws IOException, ExecutionException, InterruptedException {
+    public ResponseEntity<String> handleJobResult(@RequestBody Map<String, Object> pubSubMessage) {
         System.out.println("====== JOB COMPLETED ======");
         if (!pubSubMessage.containsKey("message")) {
             return ResponseEntity.badRequest().body("Invalid Pub/Sub format");
@@ -41,8 +40,5 @@ public class BookingJobController {
             return ResponseEntity.ok().build();
         }
         return ResponseEntity.accepted().build();
-
     }
-
-
 }

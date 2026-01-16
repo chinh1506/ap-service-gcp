@@ -4,8 +4,9 @@ import com.cyberlogitec.ap_service_gcp.job.extension.JobContext;
 import com.cyberlogitec.ap_service_gcp.util.Utilities;
 import com.google.api.gax.longrunning.OperationFuture;
 import com.google.cloud.firestore.Firestore;
-import com.google.cloud.firestore.FirestoreOptions;
 import com.google.cloud.run.v2.*;
+import lombok.AllArgsConstructor;
+import lombok.Data;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -98,10 +99,19 @@ public class CloudRunJobService {
         }
     }
 
-    public void setJobCache(String key, String value) throws ExecutionException, InterruptedException {
-        this.firestore.collection("job_collection").document("job").set(Map.of(key, value)).get();
+    public void setJobCache(String executionName, String jobId) throws ExecutionException, InterruptedException {
+        this.firestore.collection("job_collection").document(executionName).set(new JobCache(executionName,jobId)).get();
+
     }
-    public String getJobValue(String key) throws ExecutionException, InterruptedException {
-        return this.firestore.collection("job_collection").document("job").get().get().getString(key);
+    public String getJobValue(String executionName) throws ExecutionException, InterruptedException {
+        JobCache jobCache= (JobCache) this.firestore.collection("job_collection").document(executionName).get();
+        return jobCache.jobId;
+    }
+
+    @Data
+    @AllArgsConstructor
+    class JobCache{
+             private String executionName;
+             private String jobId;
     }
 }

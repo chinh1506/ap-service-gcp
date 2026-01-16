@@ -1,5 +1,6 @@
 package com.cyberlogitec.ap_service_gcp.service;
 
+import com.cyberlogitec.ap_service_gcp.dto.FolderInfo;
 import com.cyberlogitec.ap_service_gcp.job.implement.bkg.CreateChildFoldersExternal;
 import com.cyberlogitec.ap_service_gcp.model.FolderStructure;
 import com.cyberlogitec.ap_service_gcp.util.Utilities;
@@ -23,11 +24,6 @@ import java.util.stream.Collectors;
 public class DriveServiceHelper {
     private final Drive driveService;
 
-
-
-    /**
-     * Di chuyển tệp vào thư mục lưu trữ
-     */
     public void archiveOldFiles(String sourceFolderId, String archiveFolderId) throws IOException {
         String query = "'" + sourceFolderId + "' in parents and mimeType != 'application/vnd.google-apps.folder' and trashed = false";
         String pageToken = null;
@@ -60,14 +56,10 @@ public class DriveServiceHelper {
         } while (pageToken != null);
     }
 
-    /**
-     * Tải cấu trúc thư mục hiện có
-     */
     public FolderStructure getExistingFolderStructure(String parentFolderId) throws IOException {
         FolderStructure structure = new FolderStructure();
         List<String> childFolderIds = new ArrayList<>();
 
-        // Bước 1: Lấy Folder L1
         String pageToken = null;
         do {
             Drive.Files.List request = driveService.files().list()
@@ -82,7 +74,7 @@ public class DriveServiceHelper {
             var result = request.execute();
             if (result.getFiles() != null) {
                 for (File file : result.getFiles()) {
-                    structure.getFolderMap().put(file.getName(), new CreateChildFoldersExternal.FolderInfo(file.getId(), file.getWebViewLink()));
+                    structure.getFolderMap().put(file.getName(), new FolderInfo(file.getId(), file.getWebViewLink()));
                     childFolderIds.add(file.getId());
                 }
             }
@@ -91,13 +83,11 @@ public class DriveServiceHelper {
 
         if (childFolderIds.isEmpty()) return structure;
 
-        // Bước 2: Lấy Folder L2 (Archive) theo batch
         int BATCH_SIZE = 120;
         for (int i = 0; i < childFolderIds.size(); i += BATCH_SIZE) {
             int end = Math.min(i + BATCH_SIZE, childFolderIds.size());
             List<String> batchIds = childFolderIds.subList(i, end);
 
-            // Tạo query OR
             String parentQuery = batchIds.stream()
                     .map(id -> "('" + id + "' in parents)")
                     .collect(Collectors.joining(" or "));
@@ -108,7 +98,6 @@ public class DriveServiceHelper {
                         .setQ("(" + parentQuery + ") and mimeType = 'application/vnd.google-apps.folder' and trashed = false")
                         .setFields("files(id, name, webViewLink), nextPageToken")
                         .setPageSize(500)
-//                        .setCorpora(parentFolderId)
                         .setOrderBy("createdTime asc")
                         .setCorpora("allDrives")
                         .setSupportsAllDrives(true)
@@ -119,7 +108,7 @@ public class DriveServiceHelper {
                 var archiveResult = archiveRequest.execute();
                 if (archiveResult.getFiles() != null) {
                     for (File file : archiveResult.getFiles()) {
-                        structure.getArchiveMap().put(file.getName(), new CreateChildFoldersExternal.FolderInfo(file.getId(), file.getWebViewLink()));
+                        structure.getArchiveMap().put(file.getName(), new FolderInfo(file.getId(), file.getWebViewLink()));
                     }
                 }
                 archivePageToken = archiveResult.getNextPageToken();
@@ -168,7 +157,7 @@ public class DriveServiceHelper {
                 .setSupportsAllDrives(true)
                 .execute();
 
-        result.getFolderMap().put("main", new CreateChildFoldersExternal.FolderInfo(mainFolder.getId(), mainFolder.getWebViewLink()));
+        result.getFolderMap().put("main", new FolderInfo(mainFolder.getId(), mainFolder.getWebViewLink()));
 
         // 2. Tạo Archive
         File archMeta = new File();
@@ -181,7 +170,7 @@ public class DriveServiceHelper {
                 .setSupportsAllDrives(true)
                 .execute();
 
-        result.getArchiveMap().put("archive", new CreateChildFoldersExternal.FolderInfo(archFolder.getId(), archFolder.getWebViewLink()));
+        result.getArchiveMap().put("archive", new FolderInfo(archFolder.getId(), archFolder.getWebViewLink()));
 
         if (editorEmails != null && !editorEmails.isEmpty()) {
             foldersUpdate(workFileId, mainFolder.getId(), editorEmails);
@@ -232,7 +221,7 @@ public class DriveServiceHelper {
                     .map(String::toLowerCase)
                     .collect(Collectors.toSet());
         } catch (IOException e) {
-            System.err.println("Lỗi lấy quyền Folder hiện tại (" + countryFolderId + "): " + e.getMessage());
+            System.err.println("Error occurs when trying get current permissions (" + countryFolderId + "): " + e.getMessage());
             throw e;
         }
         System.out.println("..Current Folder emails: " + currentFolderEditorEmails);
@@ -257,17 +246,10 @@ public class DriveServiceHelper {
                         .collect(Collectors.toSet());
             }
         } catch (IOException e) {
-            System.err.println("Lỗi lấy quyền Parent Folder: " + e.getMessage());
+            System.err.println("Error when get PERM of Parent Folder: " + e.getMessage());
             throw e;
         }
-        // System.out.println("..Parent emails: " + parentFolderEditorEmails);
 
-        // =================================================================
-        // TÍNH TOÁN (LOGIC CHÍNH)
-        // =================================================================
-
-        // 5. Tính toán THÊM (ADD)
-        // Logic: Target - Current - Parent - Master
         Set<String> finalMasterEmails = masterEmails;
         Set<String> finalParentEmails = parentFolderEditorEmails;
         Set<String> finalCurrentEmails = currentFolderEditorEmails;
@@ -280,21 +262,15 @@ public class DriveServiceHelper {
 
         System.out.println("..To Add: " + emailsToAdd);
 
-        // 6. Tính toán XÓA (REMOVE)
-        // Logic: Current - Target - Parent - Master
         List<String> emailsToRemove = finalCurrentEmails.stream()
                 .filter(email -> !targetEmails.contains(email))
                 .filter(email -> !finalParentEmails.contains(email))
                 .filter(email -> !finalMasterEmails.contains(email))
-                .collect(Collectors.toList());
+                .toList();
 
         System.out.println("..To Remove: " + emailsToRemove);
 
-        // 7. Thực thi (EXECUTE)
-
-        // --- A. THÊM QUYỀN ---
         if (!emailsToAdd.isEmpty()) {
-            // Sử dụng Batch Request để tối ưu hiệu suất nếu danh sách dài
             BatchRequest batchAdd = driveService.batch();
 
             for (String email : emailsToAdd) {
@@ -315,11 +291,11 @@ public class DriveServiceHelper {
 
                                 @Override
                                 public void onFailure(GoogleJsonError e, HttpHeaders responseHeaders) {
-                                    System.err.println("Lỗi Batch Add " + email + ": " + e.getMessage());
+                                    System.err.println("Failed when Batch Add " + email + ": " + e.getMessage());
                                 }
                             });
                 } catch (IOException e) {
-                    System.err.println("Lỗi queue add permission: " + e.getMessage());
+                    System.err.println("Fail queue add permission: " + e.getMessage());
                 }
             }
 
@@ -328,12 +304,8 @@ public class DriveServiceHelper {
                 System.out.println("..Added processing complete.");
             }
         }
-
-        // --- B. XÓA QUYỀN ---
         if (!emailsToRemove.isEmpty()) {
             for (String email : emailsToRemove) {
-                // Tìm Permission ID tương ứng với email cần xóa
-                // Chỉ xóa nếu role là 'writer' hoặc 'fileOrganizer' (tránh xóa Organizer/Admin)
                 Optional<Permission> permToRemove = currentFolderPermissionsRaw.stream()
                         .filter(p -> p.getEmailAddress() != null && p.getEmailAddress().equalsIgnoreCase(email))
                         .filter(p -> "writer".equals(p.getRole()) || "fileOrganizer".equals(p.getRole()))
@@ -341,15 +313,11 @@ public class DriveServiceHelper {
 
                 if (permToRemove.isPresent()) {
                     try {
-                        // Lưu ý: Permission Delete không hỗ trợ Batch trong một số trường hợp cũ,
-                        // nhưng ở đây ta gọi trực tiếp để an toàn và dễ debug lỗi từng người.
                         driveService.permissions().delete(countryFolderId, permToRemove.get().getId())
                                 .setSupportsAllDrives(true)
                                 .execute();
-                        // System.out.println("Deleted: " + email);
                     } catch (IOException e) {
-                        System.err.println("Lỗi Remove " + email + ": " + e.getMessage());
-                        // Có thể throw e nếu muốn dừng chương trình khi gặp lỗi nghiêm trọng
+                        System.err.println("Remove fail " + email + ": " + e.getMessage());
                     }
                 } else {
                     System.out.println("Skip remove (Role protected or not found): " + email);
@@ -359,13 +327,6 @@ public class DriveServiceHelper {
         }
     }
 
-    // =================================================================
-    // CÁC HÀM HELPER
-    // =================================================================
-
-    /**
-     * Lấy TẤT CẢ permissions (xử lý phân trang nextPageToken)
-     */
     private List<Permission> getAllPermissions(String fileId) throws IOException {
         List<Permission> allPermissions = new ArrayList<>();
         String pageToken = null;
@@ -386,9 +347,6 @@ public class DriveServiceHelper {
         return allPermissions;
     }
 
-    /**
-     * Helper check role Editor
-     */
     private boolean isEditorRole(Permission p) {
         if (p == null || p.getRole() == null) return false;
         String role = p.getRole();

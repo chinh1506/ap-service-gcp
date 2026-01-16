@@ -2,6 +2,7 @@ package com.cyberlogitec.ap_service_gcp.job.implement.bkg;
 
 import com.cyberlogitec.ap_service_gcp.dto.CreateFileExternalRequest;
 import com.cyberlogitec.ap_service_gcp.dto.DataToWriteDTO;
+import com.cyberlogitec.ap_service_gcp.dto.FolderInfo;
 import com.cyberlogitec.ap_service_gcp.job.extension.JobContext;
 import com.cyberlogitec.ap_service_gcp.job.extension.JobPlugin;
 import com.cyberlogitec.ap_service_gcp.model.FolderStructure;
@@ -45,7 +46,6 @@ public class CreateChildFoldersExternal implements JobPlugin {
     @Override
     public void execute(JobContext context) throws Exception {
         System.out.println("Create ChildFolders External Job");
-//        System.out.println(context);
         CreateFileExternalRequest payload = objectMapper.convertValue(context.getPayload(), CreateFileExternalRequest.class);
 
         String totalTasksStr = System.getenv("CLOUD_RUN_TASK_COUNT");
@@ -54,11 +54,10 @@ public class CreateChildFoldersExternal implements JobPlugin {
         int currentTaskIndex = Integer.parseInt(currentTaskIndexStr);
         int totalTasks = Integer.parseInt(totalTasksStr);
 
-        TaskPartitioner.Partition partition = TaskPartitioner.calculatePartition(payload.getEndRow() - payload.getStartRow() + 1, totalTasks, currentTaskIndex);
+        TaskPartitioner.Partition partition = TaskPartitioner.calculatePartition(payload.getTotalElement(), totalTasks, currentTaskIndex);
         System.out.println(partition);
 
         if (partition.start < 0 || partition.end < 0) {
-            finishJob(getJobName(), context, currentTaskIndex);
             System.exit(0);
         }
 
@@ -79,24 +78,13 @@ public class CreateChildFoldersExternal implements JobPlugin {
 
     }
 
-    // Class nội bộ để giữ thông tin thư mục (thay thế cho JS Object)
-    @Data
-    @Builder
-    public static class FolderInfo {
-        String id;
-        String url;
 
-        public FolderInfo(String id, String url) {
-            this.id = id;
-            this.url = url;
-        }
-    }
 
     public void createAe2ChildFoldersExternal(
             String copyFolderId,
             int startRow,
             int endRow,
-            GlobalSettingBKG gs, // Giả lập đối tượng settings
+            GlobalSettingBKG gs,
             String fileToShareSsID,
             String fileToShareName,
             FolderStructure existingStructure,
@@ -107,7 +95,7 @@ public class CreateChildFoldersExternal implements JobPlugin {
             String taskId
 
     ) throws IOException, InterruptedException {
-        System.out.println("Chuẩn bị xử lý từ " + startRow + " - " + endRow);
+        System.out.println("Preparing to handle " + startRow + " - " + endRow);
 
         List<DataToWriteDTO> allResultToWrite = new ArrayList<>();
         Map<String, FolderInfo> folderMap = existingStructure.getFolderMap();
@@ -126,7 +114,6 @@ public class CreateChildFoldersExternal implements JobPlugin {
 
             List<Object> currentRow = fileUnits.get(i);
             String name = (!currentRow.isEmpty()) ? String.valueOf(currentRow.get(0)) : "";
-
             if (name == null || name.isEmpty()) {
                 ensureSize(currentRow, 3);
                 currentRow.set(1, "");
@@ -160,45 +147,36 @@ public class CreateChildFoldersExternal implements JobPlugin {
                     }
                 }
             }
-
             String countryFolderId, countryFolderUrl, archiveFolderUrl;
-
-            // 3b. Xử lý logic thư mục
             if (folderMap.containsKey(folderName)) {
                 // Đã tồn tại
                 System.out.println("...The folder have existed: .");
                 FolderInfo existingFolder = folderMap.get(folderName);
-                countryFolderId = existingFolder.id;
-                countryFolderUrl = existingFolder.url;
+                countryFolderId = existingFolder.getId();
+                countryFolderUrl = existingFolder.getUrl();
 
                 FolderInfo archiveFolder = archiveMap.get(archiveFolderName);
                 if (archiveFolder != null) {
-                    archiveFolderUrl = archiveFolder.url;
-                    this.driveServiceHelper.archiveOldFiles(countryFolderId, archiveFolder.id);
+                    archiveFolderUrl = archiveFolder.getUrl();
+                    this.driveServiceHelper.archiveOldFiles(countryFolderId, archiveFolder.getId());
                 } else {
                     archiveFolderUrl = "ERROR: NOT FOUND";
                     System.out.println("...Cannot find archive folder: " + archiveFolderName);
                 }
 
             } else {
-                // Tạo mới
                 System.out.println("...Create new folder: .");
                 FolderStructure newStruct = this.driveServiceHelper.createNewFolderStructure(folderName, archiveFolderName, copyFolderId, null, workFileId);
 
-                countryFolderId = newStruct.getFolderMap().get("main").id;
-                countryFolderUrl = newStruct.getFolderMap().get("main").url;
-                archiveFolderUrl = newStruct.getArchiveMap().get("archive").url;
+                countryFolderId = newStruct.getFolderMap().get("main").getId();
+                countryFolderUrl = newStruct.getFolderMap().get("main").getUrl();
+                archiveFolderUrl = newStruct.getArchiveMap().get("archive").getUrl();
             }
-
-            // Cập nhật URL vào List bộ nhớ
             ensureSize(currentRow, 3);
             currentRow.set(1, countryFolderUrl);
             currentRow.set(2, archiveFolderUrl);
-
-            // 3c. Sao chép File Master
             System.out.println("..Copying master file");
             Thread.sleep(1000);
-
             String newFileId = this.driveServiceHelper.copyAndMoveFile(fileToShareSsID, countryFolderId, fileToShareName);
             System.out.println("..Copy master file finished: " + newFileId);
             populateNewSheetData(apBookingData, newFileId, apBookingDataRange, fileUnitContract);
@@ -219,9 +197,6 @@ public class CreateChildFoldersExternal implements JobPlugin {
         this.gcsService.uploadStreaming(taskId, allResultToWrite);
     }
 
-    /**
-     * Populate Data
-     */
     private void populateNewSheetData(List<List<Object>> apBookingData, String targetFileId, String dataRange, List<String> filterContracts) throws IOException {
         List<List<Object>> filteredData = apBookingData.stream()
                 .filter(row -> {
@@ -242,25 +217,4 @@ public class CreateChildFoldersExternal implements JobPlugin {
         }
     }
 
-    public void finishJob(String jobName, JobContext context, int taskIndex) throws JsonProcessingException {
-        // 1. Tạo Map chứa dữ liệu muốn gửi
-        Map<String, Object> logData = new HashMap<>();
-        logData.put("event_type", jobName); // Dấu hiệu để Sink nhận diện
-        logData.put("task_id", context.getJobId());         // <--- CÁI BẠN CẦN
-        logData.put("job_name", jobName);
-        logData.put("task_index", taskIndex);
-        logData.put("status", "SUCCESS");
-
-        // Có thể thêm severity để dễ lọc
-        logData.put("severity", "INFO");
-
-        // 2. Chuyển sang JSON String
-        ObjectMapper mapper = new ObjectMapper();
-        String jsonLog = mapper.writeValueAsString(logData);
-
-        // 3. In ra Console (Cloud Run sẽ bắt cái này)
-        System.out.println(jsonLog);
-
-
-    }
 }
