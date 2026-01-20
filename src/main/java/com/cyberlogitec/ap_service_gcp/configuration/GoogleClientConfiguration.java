@@ -1,8 +1,7 @@
 package com.cyberlogitec.ap_service_gcp.configuration;
 
 import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport;
-import com.google.api.client.http.HttpRequestInitializer;
-import com.google.api.client.http.HttpTransport;
+import com.google.api.client.http.javanet.NetHttpTransport;
 import com.google.api.client.json.gson.GsonFactory;
 import com.google.api.services.drive.Drive;
 import com.google.api.services.drive.DriveScopes;
@@ -10,65 +9,63 @@ import com.google.api.services.sheets.v4.Sheets;
 import com.google.api.services.sheets.v4.SheetsScopes;
 import com.google.auth.http.HttpCredentialsAdapter;
 import com.google.auth.oauth2.GoogleCredentials;
-import com.google.auth.oauth2.ServiceAccountCredentials;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.security.GeneralSecurityException;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
 @Configuration
 public class GoogleClientConfiguration {
-    private static final String CREDENTIALS_FILE_PATH = "/credentials.json";
-    private final String APPLLICATION_NAME = "cloud-run-app";
 
+    @Value("${spring.cloud.gcp.cloud-run-app-name}")
+    private String APPLLICATION_NAME;
 
-    @Bean
-    public HttpTransport httpTransport() throws GeneralSecurityException, IOException {
-        return GoogleNetHttpTransport.newTrustedTransport();
-    }
-
-    @Bean
-    public HttpRequestInitializer httpRequestInitializer() throws IOException {
-
-        GoogleCredentials credentials =
-                ServiceAccountCredentials
-                        .fromStream(Objects.requireNonNull(GoogleClientConfiguration.class.getResourceAsStream(CREDENTIALS_FILE_PATH)))
-                        .createScoped(List.of(
-                                SheetsScopes.SPREADSHEETS,
-                                DriveScopes.DRIVE
-                        ));
-//        HttpRequestInitializer initializer= new HttpCredentialsAdapter(credentials);
-//        initializer.
-        return new HttpCredentialsAdapter(credentials);
-    }
-
+    private static final String[] CREDENTIALS_FILE_PATHS = {
+            "/secrets/credentials-0.json",
+            "/secrets/credentials-1.json",
+            "/secrets/credentials-2.json",
+            "/secrets/credentials-3.json",
+            "/secrets/credentials-4.json"
+    };
+    private static final List<String> GLOBAL_SCOPES = Arrays.asList(
+            SheetsScopes.SPREADSHEETS,
+            DriveScopes.DRIVE
+    );
 
     @Bean
-    public Sheets sheets(HttpRequestInitializer initializer) throws Exception {
+    public GoogleClientPool googleClientPool() throws GeneralSecurityException, IOException {
 
-        return new Sheets.Builder(
-                GoogleNetHttpTransport.newTrustedTransport(),
-                GsonFactory.getDefaultInstance(),
-                initializer
-        ).setApplicationName(APPLLICATION_NAME).build();
+        final NetHttpTransport transport = GoogleNetHttpTransport.newTrustedTransport();
+        final GsonFactory jsonFactory = GsonFactory.getDefaultInstance();
+
+        List<Sheets> sheetsList = new ArrayList<>();
+        List<Drive> driveList = new ArrayList<>();
+
+        for (String path : CREDENTIALS_FILE_PATHS) {
+            GoogleCredentials credential = GoogleCredentials
+                    .fromStream(Objects.requireNonNull(GoogleClientConfiguration.class.getResourceAsStream(path)))
+                    .createScoped(GLOBAL_SCOPES);
+
+            Sheets sheets = new Sheets.Builder(transport, jsonFactory, new HttpCredentialsAdapter(credential))
+                    .setApplicationName(APPLLICATION_NAME)
+                    .build();
+            sheetsList.add(sheets);
+
+            Drive drive = new Drive.Builder(transport, jsonFactory, new HttpCredentialsAdapter(credential))
+                    .setApplicationName(APPLLICATION_NAME)
+                    .build();
+            driveList.add(drive);
+
+        }
+        return new GoogleClientPool(sheetsList, driveList);
     }
 
-    @Bean
-    public Drive drive(HttpRequestInitializer initializer) throws Exception {
 
-        HttpRequestInitializer requestInitializer = httpRequest -> {
-            initializer.initialize(httpRequest);
-            httpRequest.setConnectTimeout(60000);  // 3 minutes connect timeout
-            httpRequest.setReadTimeout(2 * 60000);  // 3 minutes read timeout
-        };
-
-        return new Drive.Builder(
-                GoogleNetHttpTransport.newTrustedTransport(),
-                GsonFactory.getDefaultInstance(),
-                requestInitializer
-        ).setApplicationName(APPLLICATION_NAME).build();
-    }
 }

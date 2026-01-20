@@ -11,7 +11,7 @@ import java.util.List;
 @Builder
 public class CreateFileExternalRequest {
     private String workFileId;
-    private String copyFolderId;
+    private String toShareFolderId;
     private int totalElement;
     private int taskCount;
     private String fileToShareId;

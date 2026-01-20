@@ -9,6 +9,8 @@ spring:
         project-id: ${GOOGLE_CLOUD_PROJECT_ID}
         emulator:
           enabled: false
+      cloud-run-app-name: "${CLOUD_RUN_APP_NAME:cloud-run-app}"
+
 #      credentials:
 #        location=:classpath:credentials.json
 server:

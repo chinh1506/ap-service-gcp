@@ -1,22 +1,32 @@
 package com.cyberlogitec.ap_service_gcp.service;
 
+import com.cyberlogitec.ap_service_gcp.configuration.GoogleClientPool;
 import com.cyberlogitec.ap_service_gcp.util.Utilities;
+import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport;
+import com.google.api.client.json.gson.GsonFactory;
 import com.google.api.services.sheets.v4.Sheets;
 import com.google.api.services.sheets.v4.model.BatchGetValuesResponse;
 import com.google.api.services.sheets.v4.model.BatchUpdateValuesRequest;
 import com.google.api.services.sheets.v4.model.ClearValuesRequest;
 import com.google.api.services.sheets.v4.model.ValueRange;
-import lombok.AllArgsConstructor;
+import com.google.auth.http.HttpCredentialsAdapter;
+import com.google.auth.oauth2.GoogleCredentials;
+import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
+import java.security.GeneralSecurityException;
 import java.util.*;
 
 @Service
-@AllArgsConstructor
+@RequiredArgsConstructor
 public class SheetServiceHelper {
-    private final Sheets sheetsService;
-    private final GcsService gcsService;
+    private final GoogleClientPool googleClientPool;
+
+    private Sheets getSheetsService() throws IOException {
+        return googleClientPool.getNextSheetsClient();
+    }
 
     /**
      * Write data to sheet by BatchUpdate
@@ -36,7 +46,7 @@ public class SheetServiceHelper {
                 .setData(Collections.singletonList(data));
 
         Utilities.retry(() -> {
-            return sheetsService.spreadsheets().values()
+            return this.getSheetsService().spreadsheets().values()
                     .batchUpdate(spreadsheetId, requestBody)
                     .execute();
         }, 3);
@@ -65,7 +75,7 @@ public class SheetServiceHelper {
                 .setValueInputOption("USER_ENTERED")
                 .setData(data);
 
-        Utilities.retry(() -> this.sheetsService.spreadsheets().values()
+        Utilities.retry(() -> this.getSheetsService().spreadsheets().values()
                 .batchUpdate(spreadsheetId, body)
                 .execute(), 3);
     }
@@ -74,7 +84,7 @@ public class SheetServiceHelper {
         // 3. Xóa cũ
         ClearValuesRequest clearRequest = new ClearValuesRequest();
         Utilities.retry(() -> {
-            return this.sheetsService.spreadsheets().values().clear(spreadsheetId, range, clearRequest).execute();
+            return this.getSheetsService().spreadsheets().values().clear(spreadsheetId, range, clearRequest).execute();
         }, 3);
     }
 
@@ -92,7 +102,7 @@ public class SheetServiceHelper {
      */
     public List<List<Object>> inputAPI(String spreadsheetId, String inputRange, int dataLength) throws IOException {
         ValueRange response = Utilities.retry(() ->
-                        sheetsService.spreadsheets().values()
+                        getSheetsService().spreadsheets().values()
                                 .get(spreadsheetId, inputRange)
                                 .execute()
                 , 3);
@@ -119,7 +129,7 @@ public class SheetServiceHelper {
      */
     public Map<String, List<List<Object>>> getMappedBatchData(String spreadsheetId, List<String> ranges) throws IOException {
         // 1. Gọi API batchGet (Chỉ tốn 1 đơn vị Quota Read)
-        BatchGetValuesResponse response = Utilities.retry(() -> sheetsService.spreadsheets().values()
+        BatchGetValuesResponse response = Utilities.retry(() -> getSheetsService().spreadsheets().values()
                 .batchGet(spreadsheetId)
                 .setRanges(ranges)
                 .setValueRenderOption("FORMATTED_VALUE") // Giống Apps Script
@@ -129,16 +139,9 @@ public class SheetServiceHelper {
         List<ValueRange> returnedRanges = response.getValueRanges();
 
         if (returnedRanges != null) {
-            // Google đảm bảo danh sách trả về có thứ tự khớp 1-1 với danh sách 'ranges' đầu vào
-            // Nên ta dùng vòng lặp theo index để map đúng Key gốc.
             for (int i = 0; i < returnedRanges.size(); i++) {
-
-                // Logic tương đương: const originalKey = ranges[index];
                 String originalKey = ranges.get(i);
-
                 ValueRange rangeObj = returnedRanges.get(i);
-
-                // Logic tương đương: rangeObj.values || []
                 List<List<Object>> values = rangeObj.getValues();
                 if (values == null) {
                     values = Collections.emptyList();
@@ -151,6 +154,9 @@ public class SheetServiceHelper {
         return dataMap;
 
     }
+
+
+
 
 
 }

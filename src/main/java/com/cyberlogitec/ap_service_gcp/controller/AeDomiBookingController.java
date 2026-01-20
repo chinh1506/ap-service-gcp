@@ -9,18 +9,15 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.io.IOException;
 import java.util.Map;
-import java.util.concurrent.ExecutionException;
 
 @RestController
-@RequestMapping("/jobs")
+@RequestMapping("/aedomi/bkg")
 @AllArgsConstructor
-public class BookingJobController {
+public class AeDomiBookingController {
     private final BookingJobService bookingJobService;
 
-
-    @PostMapping("/exec/CreateChildFoldersExternal")
+    @PostMapping("/CreateChildFoldersExternal")
     public ResponseEntity<?> createChildFoldersExternal(@RequestBody Object payload) throws Exception {
         Utilities.logMemory("Begin CreateChildFoldersExternal");
         this.bookingJobService.prepareToCreateChildFoldersExternal(payload);
@@ -41,4 +38,11 @@ public class BookingJobController {
         }
         return ResponseEntity.accepted().build();
     }
+
+    @PostMapping("/exec/NotifyToPICExternal")
+    public ResponseEntity<String> testEndpoint() {
+        return ResponseEntity.ok("Test endpoint is working!");
+    }
+
+
 }

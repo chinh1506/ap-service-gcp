@@ -11,34 +11,42 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 
 @RestController
-
 public class TestController {
-    private final Sheets sheetsService;
-    private final DriveServiceHelper driveServiceHelper;
     private final CloudRunJobService cloudRunJobService;
-    private final Firestore firestore;
 
-    public TestController(Sheets sheets, DriveServiceHelper driveServiceHelper, CloudRunJobService cloudRunJobService, Firestore firestore) {
-        this.sheetsService = sheets;
-        this.driveServiceHelper = driveServiceHelper;
+    public TestController(CloudRunJobService cloudRunJobService) {
         this.cloudRunJobService = cloudRunJobService;
-        this.firestore = firestore;
     }
 
 
     @GetMapping("/test")
-    public Object getSheetName() throws IOException {
+    public Object getSheetName() throws  ExecutionException, InterruptedException {
+        cloudRunJobService.setJobCache("execution-name-123", "job-id-456");
+//        driveServiceHelper
+//        FolderStructure folderStructure = driveServiceHelper.getExistingFolderStructure("1sWJD5TwY9ufmKmGG6Tf_gbcimESWiCQH");
+//        System.out.println(folderStructure);
+//        DocumentReference test = firestore.collection("job_collection").document("test");
+
+//        test.set(Map.of("key", "value"));
+//
+//        this.cloudRunJobService.getJobExecutionDetails("ap-job-2g8jp");
+
+        return null;
+    }
+    @GetMapping("/test-get")
+    public Object getData() throws  ExecutionException, InterruptedException {
+       return  cloudRunJobService.getJobValue("execution-name-123");
 //    driveServiceHelper
 //        FolderStructure folderStructure = driveServiceHelper.getExistingFolderStructure("1sWJD5TwY9ufmKmGG6Tf_gbcimESWiCQH");
 //        System.out.println(folderStructure);
-        DocumentReference test = firestore.collection("job_collection").document("test");
+//        DocumentReference test = firestore.collection("job_collection").document("test");
 
-        test.set(Map.of("key", "value"));
+//        test.set(Map.of("key", "value"));
+//
+//        this.cloudRunJobService.getJobExecutionDetails("ap-job-2g8jp");
 
-        this.cloudRunJobService.getJobExecutionDetails("ap-job-2g8jp");
-
-        return null;
     }
 }

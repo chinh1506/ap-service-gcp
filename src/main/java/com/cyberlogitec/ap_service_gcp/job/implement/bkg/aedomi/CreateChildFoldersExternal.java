@@ -1,4 +1,4 @@
-package com.cyberlogitec.ap_service_gcp.job.implement.bkg;
+package com.cyberlogitec.ap_service_gcp.job.implement.bkg.aedomi;
 
 import com.cyberlogitec.ap_service_gcp.dto.CreateFileExternalRequest;
 import com.cyberlogitec.ap_service_gcp.dto.DataToWriteDTO;
@@ -13,17 +13,13 @@ import com.cyberlogitec.ap_service_gcp.util.GlobalSettingBKG;
 import com.cyberlogitec.ap_service_gcp.util.ScriptSetting;
 import com.cyberlogitec.ap_service_gcp.util.TaskPartitioner;
 import com.cyberlogitec.ap_service_gcp.util.Utilities;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -32,11 +28,11 @@ import java.util.stream.Collectors;
 @Profile("job")
 @AllArgsConstructor
 public class CreateChildFoldersExternal implements JobPlugin {
+
     private final SheetServiceHelper sheetServiceHelper;
     private final DriveServiceHelper driveServiceHelper;
     private final ObjectMapper objectMapper;
     private final GcsService gcsService;
-
 
     @Override
     public String getJobName() {
@@ -61,7 +57,7 @@ public class CreateChildFoldersExternal implements JobPlugin {
             System.exit(0);
         }
 
-        this.createAe2ChildFoldersExternal(payload.getCopyFolderId()
+        this.createAe2ChildFoldersExternal(payload.getToShareFolderId()
                 , partition.start
                 , partition.end
                 , payload.getGs()
@@ -78,10 +74,8 @@ public class CreateChildFoldersExternal implements JobPlugin {
 
     }
 
-
-
     public void createAe2ChildFoldersExternal(
-            String copyFolderId,
+            String toShareFolderId,
             int startRow,
             int endRow,
             GlobalSettingBKG gs,
@@ -149,7 +143,6 @@ public class CreateChildFoldersExternal implements JobPlugin {
             }
             String countryFolderId, countryFolderUrl, archiveFolderUrl;
             if (folderMap.containsKey(folderName)) {
-                // Đã tồn tại
                 System.out.println("...The folder have existed: .");
                 FolderInfo existingFolder = folderMap.get(folderName);
                 countryFolderId = existingFolder.getId();
@@ -166,7 +159,7 @@ public class CreateChildFoldersExternal implements JobPlugin {
 
             } else {
                 System.out.println("...Create new folder: .");
-                FolderStructure newStruct = this.driveServiceHelper.createNewFolderStructure(folderName, archiveFolderName, copyFolderId, null, workFileId);
+                FolderStructure newStruct = this.driveServiceHelper.createNewFolderStructure(folderName, archiveFolderName, toShareFolderId, null, workFileId);
 
                 countryFolderId = newStruct.getFolderMap().get("main").getId();
                 countryFolderUrl = newStruct.getFolderMap().get("main").getUrl();

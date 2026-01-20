@@ -3,5 +3,10 @@ spring:
     name: ap-service-gcp
   main:
     web-application-type: none
-server:
-  port: ${PORT:8080}
+  cloud:
+    gcp:
+      firestore:
+        project-id: ${GOOGLE_CLOUD_PROJECT_ID}
+        emulator:
+          enabled: false
+      cloud-run-app-name: "${CLOUD_RUN_APP_NAME:cloud-run-app}"

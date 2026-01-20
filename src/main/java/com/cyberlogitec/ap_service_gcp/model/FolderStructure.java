@@ -1,7 +1,6 @@
 package com.cyberlogitec.ap_service_gcp.model;
 
 import com.cyberlogitec.ap_service_gcp.dto.FolderInfo;
-import com.cyberlogitec.ap_service_gcp.job.implement.bkg.CreateChildFoldersExternal;
 import lombok.Data;
 
 import java.util.HashMap;

@@ -1,7 +1,7 @@
 package com.cyberlogitec.ap_service_gcp.service;
 
+import com.cyberlogitec.ap_service_gcp.configuration.GoogleClientPool;
 import com.cyberlogitec.ap_service_gcp.dto.FolderInfo;
-import com.cyberlogitec.ap_service_gcp.job.implement.bkg.CreateChildFoldersExternal;
 import com.cyberlogitec.ap_service_gcp.model.FolderStructure;
 import com.cyberlogitec.ap_service_gcp.util.Utilities;
 import com.google.api.client.googleapis.batch.BatchRequest;
@@ -10,6 +10,7 @@ import com.google.api.client.googleapis.json.GoogleJsonError;
 import com.google.api.client.http.HttpHeaders;
 import com.google.api.services.drive.Drive;
 import com.google.api.services.drive.model.File;
+import com.google.api.services.drive.model.FileList;
 import com.google.api.services.drive.model.Permission;
 import com.google.api.services.drive.model.PermissionList;
 import lombok.AllArgsConstructor;
@@ -22,14 +23,19 @@ import java.util.stream.Collectors;
 @Service
 @AllArgsConstructor
 public class DriveServiceHelper {
-    private final Drive driveService;
+    private final GoogleClientPool googleClientPool;
+
+    private Drive getDriveService() throws IOException {
+        return googleClientPool.getNextDriveClient();
+    }
+
 
     public void archiveOldFiles(String sourceFolderId, String archiveFolderId) throws IOException {
         String query = "'" + sourceFolderId + "' in parents and mimeType != 'application/vnd.google-apps.folder' and trashed = false";
         String pageToken = null;
 
         do {
-            Drive.Files.List request = driveService.files().list()
+            Drive.Files.List request = getDriveService().files().list()
                     .setQ(query)
                     .setFields("nextPageToken, files(id, name)")
                     .setSupportsAllDrives(true)
@@ -42,7 +48,7 @@ public class DriveServiceHelper {
             if (result.getFiles() != null) {
                 for (File file : result.getFiles()) {
                     try {
-                        driveService.files().update(file.getId(), null)
+                        getDriveService().files().update(file.getId(), null)
                                 .setAddParents(archiveFolderId)
                                 .setRemoveParents(sourceFolderId)
                                 .setSupportsAllDrives(true)
@@ -62,7 +68,7 @@ public class DriveServiceHelper {
 
         String pageToken = null;
         do {
-            Drive.Files.List request = driveService.files().list()
+            Drive.Files.List request = getDriveService().files().list()
                     .setQ("'" + parentFolderId + "' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false")
                     .setFields("files(id, name, webViewLink), nextPageToken")
                     .setPageSize(500)
@@ -94,7 +100,7 @@ public class DriveServiceHelper {
 
             String archivePageToken = null;
             do {
-                Drive.Files.List archiveRequest = driveService.files().list()
+                Drive.Files.List archiveRequest = getDriveService().files().list()
                         .setQ("(" + parentQuery + ") and mimeType = 'application/vnd.google-apps.folder' and trashed = false")
                         .setFields("files(id, name, webViewLink), nextPageToken")
                         .setPageSize(500)
@@ -131,7 +137,7 @@ public class DriveServiceHelper {
         resource.setParents(Collections.singletonList(targetFolderId));
 
         File copiedFile = Utilities.retry(()->{
-            return driveService.files().copy(sourceFileId, resource)
+            return getDriveService().files().copy(sourceFileId, resource)
                     .setSupportsAllDrives(true)
                     .setFields("id")
                     .execute();
@@ -152,7 +158,7 @@ public class DriveServiceHelper {
         mainMeta.setMimeType("application/vnd.google-apps.folder");
         mainMeta.setParents(Collections.singletonList(parentFolderId));
 
-        File mainFolder = driveService.files().create(mainMeta)
+        File mainFolder = getDriveService().files().create(mainMeta)
                 .setFields("id, webViewLink")
                 .setSupportsAllDrives(true)
                 .execute();
@@ -165,7 +171,7 @@ public class DriveServiceHelper {
         archMeta.setMimeType("application/vnd.google-apps.folder");
         archMeta.setParents(Collections.singletonList(mainFolder.getId()));
 
-        File archFolder = driveService.files().create(archMeta)
+        File archFolder = getDriveService().files().create(archMeta)
                 .setFields("id, webViewLink")
                 .setSupportsAllDrives(true)
                 .execute();
@@ -229,7 +235,7 @@ public class DriveServiceHelper {
         // 4. Lấy danh sách editor của thư mục CHA (Parent)
         Set<String> parentFolderEditorEmails = new HashSet<>();
         try {
-            File fileDetails = driveService.files().get(countryFolderId)
+            File fileDetails = getDriveService().files().get(countryFolderId)
                     .setFields("parents")
                     .setSupportsAllDrives(true)
                     .execute();
@@ -271,7 +277,7 @@ public class DriveServiceHelper {
         System.out.println("..To Remove: " + emailsToRemove);
 
         if (!emailsToAdd.isEmpty()) {
-            BatchRequest batchAdd = driveService.batch();
+            BatchRequest batchAdd = getDriveService().batch();
 
             for (String email : emailsToAdd) {
                 Permission newPerm = new Permission()
@@ -280,7 +286,7 @@ public class DriveServiceHelper {
                         .setEmailAddress(email);
 
                 try {
-                    driveService.permissions().create(countryFolderId, newPerm)
+                    getDriveService().permissions().create(countryFolderId, newPerm)
                             .setSupportsAllDrives(true)
                             .setSendNotificationEmail(false)
                             .queue(batchAdd, new JsonBatchCallback<Permission>() {
@@ -313,7 +319,7 @@ public class DriveServiceHelper {
 
                 if (permToRemove.isPresent()) {
                     try {
-                        driveService.permissions().delete(countryFolderId, permToRemove.get().getId())
+                        getDriveService().permissions().delete(countryFolderId, permToRemove.get().getId())
                                 .setSupportsAllDrives(true)
                                 .execute();
                     } catch (IOException e) {
@@ -331,7 +337,7 @@ public class DriveServiceHelper {
         List<Permission> allPermissions = new ArrayList<>();
         String pageToken = null;
         do {
-            PermissionList result = driveService.permissions().list(fileId)
+            PermissionList result = getDriveService().permissions().list(fileId)
                     .setPageSize(100)
                     .setFields("nextPageToken, permissions(id, emailAddress, role)")
                     .setSupportsAllDrives(true)
@@ -351,6 +357,23 @@ public class DriveServiceHelper {
         if (p == null || p.getRole() == null) return false;
         String role = p.getRole();
         return role.equals("writer") || role.equals("organizer") || role.equals("fileOrganizer");
+    }
+
+    public FileList findFileInSubfolderByName(String folderId, String name) throws IOException {
+        return this.getDriveService().files().list()
+                .setQ("'" + folderId + "' in parents and name contains '" + name + "' and trashed = false")
+                .setFields("files(webViewLink)")
+                .execute();
+    }
+    public FileList findFolderInSubfolder(String folderId,String pageToken) throws IOException {
+        return this.getDriveService().files().list()
+                .setQ("'" + folderId + "' in parents  and mimeType = 'application/vnd.google-apps.folder' and trashed = false")
+                .setFields("nextPageToken, files(id, name)")
+                .setCorpora("allDrives")
+                .setSupportsAllDrives(true)
+                .setIncludeItemsFromAllDrives(true)
+                .setPageToken(pageToken)
+                .execute();
     }
 
 

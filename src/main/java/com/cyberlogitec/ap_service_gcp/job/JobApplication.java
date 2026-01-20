@@ -33,8 +33,6 @@ public class JobApplication implements CommandLineRunner {
         String jobPayloadId = System.getenv("JOB_PAYLOAD_ID");
         byte[] bytes = this.gcsService.getFile(jobPayloadId);
         JobContext context = mapper.readValue(bytes, JobContext.class);
-//        CreateFileExternalRequest request= mapper.convertValue( context.getPayload(), CreateFileExternalRequest.class);
-//        System.out.println("Job context: " + context);
 
         runner.run(jobName, context);
         System.exit(0);
