@@ -1,5 +1,6 @@
-package com.cyberlogitec.ap_service_gcp.dto;
+package com.cyberlogitec.ap_service_gcp.dto.bkg;
 
+import com.cyberlogitec.ap_service_gcp.dto.FolderStructure;
 import com.cyberlogitec.ap_service_gcp.util.GlobalSettingBKG;
 import lombok.Builder;
 import lombok.Data;
@@ -8,7 +9,7 @@ import java.util.List;
 
 @Data
 @Builder
-public class CreateFileExternalDTO {
+public class CreateFileToShareDTO {
     private String workFileId;
     private String toShareFolderId;
     private int totalElement;

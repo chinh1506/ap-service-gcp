@@ -11,7 +11,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.io.IOException;
-import java.util.Map;
 
 @RestController
 @RequestMapping("/aedomi/bkg")
@@ -26,25 +25,12 @@ public class AeDomiBookingController {
         return ResponseEntity.accepted().build();
     }
 
-    @PostMapping("/job-result")
-    public ResponseEntity<String> handleJobResult(@RequestBody Map<String, Map<String, Object>> pubSubMessage) {
-        System.out.println("====== JOB COMPLETED ======");
-        if (!pubSubMessage.containsKey("message")) {
-            return ResponseEntity.badRequest().body("Invalid Pub/Sub format");
-        }
-        try {
-            this.bookingJobService.handleBookingCallBackResult(pubSubMessage);
-        } catch (Exception e) {
-            e.printStackTrace();
-            return ResponseEntity.ok().build();
-        }
-        return ResponseEntity.accepted().build();
-    }
+
 
     @PostMapping("/notify-to-pic-external")
     public ResponseEntity<String> testEndpoint(@RequestBody NotifyToPicRequest notifyToPicRequest) throws IOException {
 
-        this.bookingJobService.notifyToPICButton(notifyToPicRequest.getToShareFolderId(),notifyToPicRequest.getWorkFileId(), true);
+        this.bookingJobService.notifyToPIC(notifyToPicRequest);
 
 
         return ResponseEntity.ok("Test endpoint is working!");

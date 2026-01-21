@@ -1,4 +1,4 @@
-package com.cyberlogitec.ap_service_gcp.job.implement.ap.prepare;
+package com.cyberlogitec.ap_service_gcp.job.strategy.ap.prepare;
 
 import com.cyberlogitec.ap_service_gcp.job.extension.JobContext;
 import com.cyberlogitec.ap_service_gcp.job.extension.JobPlugin;

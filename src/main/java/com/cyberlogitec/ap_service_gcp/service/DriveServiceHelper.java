@@ -62,7 +62,11 @@ public class DriveServiceHelper {
         } while (pageToken != null);
     }
 
-    public FolderStructure getExistingFolderStructure(String parentFolderId) throws IOException {
+    public FolderStructure getExistingFolderStructure(String parentFolderId) throws IOException{
+        return getExistingFolderStructure(parentFolderId, true);
+    }
+
+    public FolderStructure getExistingFolderStructure(String parentFolderId, boolean includeNested) throws IOException {
         FolderStructure structure = new FolderStructure();
         List<String> childFolderIds = new ArrayList<>();
 
@@ -87,7 +91,7 @@ public class DriveServiceHelper {
             pageToken = result.getNextPageToken();
         } while (pageToken != null);
 
-        if (childFolderIds.isEmpty()) return structure;
+        if (childFolderIds.isEmpty() || !includeNested) return structure;
 
         int BATCH_SIZE = 120;
         for (int i = 0; i < childFolderIds.size(); i += BATCH_SIZE) {

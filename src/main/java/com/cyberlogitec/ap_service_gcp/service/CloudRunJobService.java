@@ -6,23 +6,25 @@ import com.cyberlogitec.ap_service_gcp.util.Utilities;
 import com.google.api.gax.longrunning.OperationFuture;
 import com.google.cloud.firestore.Firestore;
 import com.google.cloud.run.v2.*;
+import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.util.concurrent.ExecutionException;
 
 @Service
+@RequiredArgsConstructor
 public class CloudRunJobService {
-    private final GcsService gcsService;
-    private final String projectId = System.getenv("GOOGLE_CLOUD_PROJECT_ID");
-    private final String region = System.getenv("GOOGLE_CLOUD_REGION");
-    private final String cloudRunJobName = System.getenv("CLOUD_RUN_JOB_NAME");
+    @Value("${GOOGLE_CLOUD_PROJECT_ID}")
+    private String projectId;
+    @Value("${GOOGLE_CLOUD_REGION}")
+    private String region;
+    @Value("${CLOUD_RUN_JOB_NAME}")
+    private String cloudRunJobName;
     private final Firestore firestore;
+    private final GcsService gcsService;
 
-    public CloudRunJobService(GcsService gcsService, Firestore firestore) {
-        this.gcsService = gcsService;
-        this.firestore = firestore;
-    }
 
     public void runJob(String jobName, JobContext context) {
         // 3. Vẫn bắt buộc phải set Endpoint
@@ -68,7 +70,7 @@ public class CloudRunJobService {
 
             String[] splitName = execution.getName().split("/");
             String executionName = splitName[splitName.length - 1];
-            this.setJobCache(new JobCache(executionName, context.getJobId(),jobName));
+            this.setJobCache(new JobCache(executionName, context.getJobId(), jobName));
 
         } catch (Exception e) {
             throw new RuntimeException(e);
@@ -97,13 +99,11 @@ public class CloudRunJobService {
     }
 
     public void setJobCache(JobCache jobCache) throws ExecutionException, InterruptedException {
-        this.firestore.collection("job_collection").document(jobCache.getJobName()).set(jobCache).get();
+        this.firestore.collection("job_collection").document(jobCache.getExecutionName()).set(jobCache).get();
     }
 
-    public String getJobValue(String executionName) throws ExecutionException, InterruptedException {
-        JobCache jobCache = this.firestore.collection("job_collection").document(executionName).get().get().toObject(JobCache.class);
-        assert jobCache != null;
-        return jobCache.getJobId();
+    public JobCache getJobValue(String executionName) throws ExecutionException, InterruptedException {
+        return this.firestore.collection("job_collection").document(executionName).get().get().toObject(JobCache.class);
     }
 
     public void deleteJobCache(String executionName) {

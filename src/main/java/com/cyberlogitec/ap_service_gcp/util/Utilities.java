@@ -4,6 +4,7 @@ import lombok.experimental.UtilityClass;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
@@ -179,5 +180,22 @@ public class Utilities {
         }
 
         return transposed;
+    }
+
+    public String nameTargetWeek(List<List<Object>> targetWeekFull) {
+        List<Integer> nums = new ArrayList<>();
+        for (List<Object> row : targetWeekFull) {
+            for (Object cell : row) {
+                try {
+                    if (cell != null && !cell.toString().isEmpty())
+                        nums.add(Integer.parseInt(cell.toString()));
+                } catch (NumberFormatException ignored) {
+                }
+            }
+        }
+        if (nums.isEmpty()) return "";
+        int min = Collections.min(nums);
+        int max = Collections.max(nums);
+        return "W" + (min % 100) + "-W" + (max % 100);
     }
 }

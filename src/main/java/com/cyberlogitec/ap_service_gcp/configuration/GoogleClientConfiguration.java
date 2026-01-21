@@ -28,11 +28,11 @@ public class GoogleClientConfiguration {
     private String APPLLICATION_NAME;
 
     private static final String[] CREDENTIALS_FILE_PATHS = {
-            "/secrets/credentials-0.json",
-            "/secrets/credentials-1.json",
-            "/secrets/credentials-2.json",
-            "/secrets/credentials-3.json",
-            "/secrets/credentials-4.json"
+            "/secrets-config/credentials-0.json",
+            "/secrets-config/credentials-1.json",
+            "/secrets-config/credentials-2.json",
+            "/secrets-config/credentials-3.json",
+            "/secrets-config/credentials-4.json"
     };
     private static final List<String> GLOBAL_SCOPES = Arrays.asList(
             SheetsScopes.SPREADSHEETS,

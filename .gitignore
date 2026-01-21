@@ -33,6 +33,6 @@ build/
 .vscode/
 
 # Secret files
-**/src/main/**/secrets/
+**/src/main/**/secrets-config/
 .env
 

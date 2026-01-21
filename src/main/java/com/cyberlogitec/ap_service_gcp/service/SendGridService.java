@@ -1,6 +1,7 @@
 package com.cyberlogitec.ap_service_gcp.service;
 
 import com.cyberlogitec.ap_service_gcp.dto.EmailAttachment;
+import com.cyberlogitec.ap_service_gcp.dto.EmailDTO;
 import com.sendgrid.Method;
 import com.sendgrid.Request;
 import com.sendgrid.Response;
@@ -27,6 +28,9 @@ import org.thymeleaf.spring6.SpringTemplateEngine;
 import java.awt.*;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.List;
 
@@ -36,7 +40,8 @@ public class SendGridService {
     private final SendGrid sendGrid;
     private final Email fromEmail;
     private final SpringTemplateEngine templateEngine;
-
+    private static final String HISTORY_SKIPPED = "Skipped";
+    public static final String HISTORY_ERROR = "Error Sending";
 
     /**
      * Hàm gửi email đa năng (Full option)
@@ -161,6 +166,55 @@ public class SendGridService {
         } catch (IOException e) {
             e.printStackTrace();
             return null;
+        }
+    }
+
+
+    public String createEmailSubject(List<List<Object>> emailContent, String tradeName, String foName) {
+        String today = ZonedDateTime.now(ZoneId.of("Asia/Singapore")).format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+        for (List<Object> row : emailContent) {
+            if (row.size() >= 2 && "subject".equalsIgnoreCase(row.get(0).toString())) {
+                return row.get(1).toString()
+                        .replace("<TRADE NAME>", tradeName)
+                        .replace("<FO NAME>", foName)
+                        .replace("<Date>", today);
+            }
+        }
+        return "";
+    }
+    public String createEmailBody(List<List<Object>> emailContent, String foName, String fileLink, String tradeName, String targetWeek) {
+        String today = ZonedDateTime.now(ZoneId.of("Asia/Singapore")).format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+        for (List<Object> row : emailContent) {
+            if (row.size() >= 2 && "body".equalsIgnoreCase(row.get(0).toString())) {
+                return row.get(1).toString()
+                        .replace("<FO NAME>", foName)
+                        .replace("<FO INPUT LINK>", fileLink)
+                        .replace("<Trade Name>", tradeName)
+                        .replace("<TargetWeek>", targetWeek)
+                        .replace("<Date>", today)
+                        .replace("\r\n", "\n").replace("\n", "<br>");
+            }
+        }
+        return "";
+    }
+    public List<String> sendEmailSendGrid(EmailDTO emailData) {
+        String currentDate = ZonedDateTime.now(ZoneId.of("Asia/Singapore")).format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss Z"));
+        try {
+            if (emailData.getTo() == null || emailData.getTo().isEmpty()) {
+                return Arrays.asList(emailData.getFo(), HISTORY_SKIPPED, String.join(",", emailData.getTo()), "");
+            }
+            Set<String> toSet = emailData.getTo();
+            Set<String> ccSet = emailData.getCc();
+            Set<String> bccSet = emailData.getBcc();
+            ccSet.removeAll(toSet);
+            bccSet.removeAll(toSet);
+            bccSet.removeAll(ccSet);
+            this.sendEmail(toSet, ccSet, bccSet, emailData.getSubject(), emailData.getBody(), null);
+            return Arrays.asList(emailData.getFo(), currentDate, String.join(",", emailData.getTo()), String.join(",", emailData.getCc()), String.join(",", emailData.getBcc()));
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return Arrays.asList(emailData.getFo(), HISTORY_ERROR, String.join(",", emailData.getTo()), String.join(",", emailData.getCc()), String.join(",", emailData.getBcc()));
         }
     }
 

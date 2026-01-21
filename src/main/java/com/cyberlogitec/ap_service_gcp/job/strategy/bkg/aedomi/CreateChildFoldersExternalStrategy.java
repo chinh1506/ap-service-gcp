@@ -1,6 +1,6 @@
-package com.cyberlogitec.ap_service_gcp.job.implement.bkg.aedomi;
+package com.cyberlogitec.ap_service_gcp.job.strategy.bkg.aedomi;
 
-import com.cyberlogitec.ap_service_gcp.dto.CreateFileExternalDTO;
+import com.cyberlogitec.ap_service_gcp.dto.bkg.CreateFileToShareDTO;
 import com.cyberlogitec.ap_service_gcp.dto.DataToWriteDTO;
 import com.cyberlogitec.ap_service_gcp.dto.FolderInfo;
 import com.cyberlogitec.ap_service_gcp.job.extension.JobContext;
@@ -27,7 +27,7 @@ import java.util.stream.Collectors;
 @Component
 @Profile("job")
 @AllArgsConstructor
-public class CreateChildFoldersExternal implements JobPlugin {
+public class CreateChildFoldersExternalStrategy implements JobPlugin {
 
     private final SheetServiceHelper sheetServiceHelper;
     private final DriveServiceHelper driveServiceHelper;
@@ -42,8 +42,7 @@ public class CreateChildFoldersExternal implements JobPlugin {
     @Override
     public void execute(JobContext context) throws Exception {
         System.out.println("Create ChildFolders External Job");
-        CreateFileExternalDTO payload = objectMapper.convertValue(context.getPayload(), CreateFileExternalDTO.class);
-
+        CreateFileToShareDTO payload = objectMapper.convertValue(context.getPayload(), CreateFileToShareDTO.class);
         String totalTasksStr = System.getenv("CLOUD_RUN_TASK_COUNT");
         String currentTaskIndexStr = System.getenv("CLOUD_RUN_TASK_INDEX");
         System.out.println(currentTaskIndexStr);
@@ -131,7 +130,6 @@ public class CreateChildFoldersExternal implements JobPlugin {
             String archiveFolderName = name + "_Archived " + folderSuffix;
             System.out.println("Handling: " + name + " order: " + (i + 1));
 
-            // Lấy email editors
             List<String> emails = new ArrayList<>();
             if (i < fileUnitsAccess.size()) {
                 List<Object> accessRow = fileUnitsAccess.get(i);
@@ -176,7 +174,6 @@ public class CreateChildFoldersExternal implements JobPlugin {
             this.driveServiceHelper.foldersUpdate(workFileId, countryFolderId, emails);
         }
 
-        // Cắt mảng
         int safeEndRow = Math.min(endRow, fileUnits.size());
         if (startRow <= safeEndRow) {
             List<List<Object>> dataToWrite = new ArrayList<>(fileUnits.subList(startRow, safeEndRow + 1));
