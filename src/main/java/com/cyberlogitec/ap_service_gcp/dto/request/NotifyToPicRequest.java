@@ -1,4 +1,4 @@
-package com.cyberlogitec.ap_service_gcp.dto;
+package com.cyberlogitec.ap_service_gcp.dto.request;
 
 import lombok.Data;
 

@@ -1,6 +1,5 @@
-package com.cyberlogitec.ap_service_gcp.model;
+package com.cyberlogitec.ap_service_gcp.dto;
 
-import com.cyberlogitec.ap_service_gcp.dto.FolderInfo;
 import lombok.Data;
 
 import java.util.HashMap;

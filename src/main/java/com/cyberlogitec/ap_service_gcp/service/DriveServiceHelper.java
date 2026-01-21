@@ -2,7 +2,7 @@ package com.cyberlogitec.ap_service_gcp.service;
 
 import com.cyberlogitec.ap_service_gcp.configuration.GoogleClientPool;
 import com.cyberlogitec.ap_service_gcp.dto.FolderInfo;
-import com.cyberlogitec.ap_service_gcp.model.FolderStructure;
+import com.cyberlogitec.ap_service_gcp.dto.FolderStructure;
 import com.cyberlogitec.ap_service_gcp.util.Utilities;
 import com.google.api.client.googleapis.batch.BatchRequest;
 import com.google.api.client.googleapis.batch.json.JsonBatchCallback;

@@ -2,7 +2,7 @@ package com.cyberlogitec.ap_service_gcp.service;
 
 import com.cyberlogitec.ap_service_gcp.dto.*;
 import com.cyberlogitec.ap_service_gcp.job.extension.JobContext;
-import com.cyberlogitec.ap_service_gcp.model.FolderStructure;
+import com.cyberlogitec.ap_service_gcp.dto.FolderStructure;
 import com.cyberlogitec.ap_service_gcp.util.GlobalSettingBKG;
 import com.cyberlogitec.ap_service_gcp.util.ScriptSetting;
 import com.cyberlogitec.ap_service_gcp.util.ScriptSettingLoader;

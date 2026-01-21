@@ -1,8 +1,7 @@
 package com.cyberlogitec.ap_service_gcp.controller;
 
-import com.cyberlogitec.ap_service_gcp.dto.NotifyToPicRequest;
+import com.cyberlogitec.ap_service_gcp.dto.request.NotifyToPicRequest;
 import com.cyberlogitec.ap_service_gcp.service.BookingJobService;
-import com.cyberlogitec.ap_service_gcp.util.ScriptSettingLoader;
 import com.cyberlogitec.ap_service_gcp.util.Utilities;
 import lombok.AllArgsConstructor;
 import org.springframework.http.ResponseEntity;

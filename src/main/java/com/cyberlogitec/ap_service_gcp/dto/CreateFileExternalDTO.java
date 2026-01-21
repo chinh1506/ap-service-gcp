@@ -1,6 +1,5 @@
 package com.cyberlogitec.ap_service_gcp.dto;
 
-import com.cyberlogitec.ap_service_gcp.model.FolderStructure;
 import com.cyberlogitec.ap_service_gcp.util.GlobalSettingBKG;
 import lombok.Builder;
 import lombok.Data;

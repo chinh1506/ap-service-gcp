@@ -3,13 +3,9 @@ package com.cyberlogitec.ap_service_gcp.service;
 import com.cyberlogitec.ap_service_gcp.job.extension.JobContext;
 import com.cyberlogitec.ap_service_gcp.model.JobCache;
 import com.cyberlogitec.ap_service_gcp.util.Utilities;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.api.gax.longrunning.OperationFuture;
-import com.google.cloud.firestore.DocumentSnapshot;
 import com.google.cloud.firestore.Firestore;
 import com.google.cloud.run.v2.*;
-import lombok.AllArgsConstructor;
-import lombok.Data;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -72,7 +68,7 @@ public class CloudRunJobService {
 
             String[] splitName = execution.getName().split("/");
             String executionName = splitName[splitName.length - 1];
-            this.setJobCache(executionName, context.getJobId());
+            this.setJobCache(new JobCache(executionName, context.getJobId(),jobName));
 
         } catch (Exception e) {
             throw new RuntimeException(e);
@@ -100,8 +96,8 @@ public class CloudRunJobService {
         }
     }
 
-    public void setJobCache(String executionName, String jobId) throws ExecutionException, InterruptedException {
-        this.firestore.collection("job_collection").document(executionName).set(new JobCache(executionName, jobId)).get();
+    public void setJobCache(JobCache jobCache) throws ExecutionException, InterruptedException {
+        this.firestore.collection("job_collection").document(jobCache.getJobName()).set(jobCache).get();
     }
 
     public String getJobValue(String executionName) throws ExecutionException, InterruptedException {

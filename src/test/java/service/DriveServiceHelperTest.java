@@ -1,10 +1,9 @@
 package service;
 
-import com.cyberlogitec.ap_service_gcp.model.FolderStructure;
+import com.cyberlogitec.ap_service_gcp.dto.FolderStructure;
 import com.cyberlogitec.ap_service_gcp.service.DriveServiceHelper;
 import org.junit.jupiter.api.Test;
 import org.mockito.InjectMocks;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 
 import java.io.IOException;

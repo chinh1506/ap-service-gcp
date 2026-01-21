@@ -5,7 +5,7 @@ import com.cyberlogitec.ap_service_gcp.dto.DataToWriteDTO;
 import com.cyberlogitec.ap_service_gcp.dto.FolderInfo;
 import com.cyberlogitec.ap_service_gcp.job.extension.JobContext;
 import com.cyberlogitec.ap_service_gcp.job.extension.JobPlugin;
-import com.cyberlogitec.ap_service_gcp.model.FolderStructure;
+import com.cyberlogitec.ap_service_gcp.dto.FolderStructure;
 import com.cyberlogitec.ap_service_gcp.service.DriveServiceHelper;
 import com.cyberlogitec.ap_service_gcp.service.GcsService;
 import com.cyberlogitec.ap_service_gcp.service.SheetServiceHelper;

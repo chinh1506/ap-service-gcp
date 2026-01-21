@@ -12,4 +12,5 @@ public class JobCache{
     @DocumentId
     private String executionName;
     private String jobId;
+    private String jobName;
 }
