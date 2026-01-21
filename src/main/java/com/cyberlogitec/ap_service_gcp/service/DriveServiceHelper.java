@@ -362,7 +362,10 @@ public class DriveServiceHelper {
     public FileList findFileInSubfolderByName(String folderId, String name) throws IOException {
         return this.getDriveService().files().list()
                 .setQ("'" + folderId + "' in parents and name contains '" + name + "' and trashed = false")
-                .setFields("files(webViewLink)")
+                .setFields("files(id, name, webViewLink)")
+                .setSupportsAllDrives(true)
+                .setCorpora("allDrives")
+                .setIncludeItemsFromAllDrives(true)
                 .execute();
     }
     public FileList findFolderInSubfolder(String folderId,String pageToken) throws IOException {

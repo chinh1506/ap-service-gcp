@@ -1,6 +1,8 @@
 package com.cyberlogitec.ap_service_gcp.controller;
 
+import com.cyberlogitec.ap_service_gcp.dto.NotifyToPicRequest;
 import com.cyberlogitec.ap_service_gcp.service.BookingJobService;
+import com.cyberlogitec.ap_service_gcp.util.ScriptSettingLoader;
 import com.cyberlogitec.ap_service_gcp.util.Utilities;
 import lombok.AllArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -9,6 +11,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.io.IOException;
 import java.util.Map;
 
 @RestController
@@ -17,7 +20,7 @@ import java.util.Map;
 public class AeDomiBookingController {
     private final BookingJobService bookingJobService;
 
-    @PostMapping("/CreateChildFoldersExternal")
+    @PostMapping("/create-child-folder-external")
     public ResponseEntity<?> createChildFoldersExternal(@RequestBody Object payload) throws Exception {
         Utilities.logMemory("Begin CreateChildFoldersExternal");
         this.bookingJobService.prepareToCreateChildFoldersExternal(payload);
@@ -25,7 +28,7 @@ public class AeDomiBookingController {
     }
 
     @PostMapping("/job-result")
-    public ResponseEntity<String> handleJobResult(@RequestBody Map<String, Object> pubSubMessage) {
+    public ResponseEntity<String> handleJobResult(@RequestBody Map<String, Map<String, Object>> pubSubMessage) {
         System.out.println("====== JOB COMPLETED ======");
         if (!pubSubMessage.containsKey("message")) {
             return ResponseEntity.badRequest().body("Invalid Pub/Sub format");
@@ -39,8 +42,12 @@ public class AeDomiBookingController {
         return ResponseEntity.accepted().build();
     }
 
-    @PostMapping("/exec/NotifyToPICExternal")
-    public ResponseEntity<String> testEndpoint() {
+    @PostMapping("/notify-to-pic-external")
+    public ResponseEntity<String> testEndpoint(@RequestBody NotifyToPicRequest notifyToPicRequest) throws IOException {
+
+        this.bookingJobService.notifyToPICButton(notifyToPicRequest.getToShareFolderId(),notifyToPicRequest.getWorkFileId(), true);
+
+
         return ResponseEntity.ok("Test endpoint is working!");
     }
 

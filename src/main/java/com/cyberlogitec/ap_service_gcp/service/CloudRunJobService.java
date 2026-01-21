@@ -91,12 +91,11 @@ public class CloudRunJobService {
             int runningCount = execution.getRunningCount();
             int cancelledCount = execution.getCancelledCount();
 
-            // 4. In kết quả hoặc xử lý logic
             System.out.println("--- KẾT QUẢ CHI TIẾT ---");
-            System.out.println("✅ Thành công: " + succeededCount);
-            System.out.println("❌ Thất bại:   " + failedCount);
-            System.out.println("🏃 Đang chạy:  " + runningCount);
-            System.out.println("🚫 Đã hủy:     " + cancelledCount);
+            System.out.println("Thành công: " + succeededCount);
+            System.out.println("Thất bại:   " + failedCount);
+            System.out.println("Đang chạy:  " + runningCount);
+            System.out.println("Đã hủy:     " + cancelledCount);
 
         }
     }

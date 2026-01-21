@@ -1,14 +1,10 @@
 package com.cyberlogitec.ap_service_gcp.job;
 
-import com.cyberlogitec.ap_service_gcp.dto.CreateFileExternalRequest;
 import com.cyberlogitec.ap_service_gcp.job.extension.JobContext;
 import com.cyberlogitec.ap_service_gcp.job.extension.JobRunner;
 import com.cyberlogitec.ap_service_gcp.service.GcsService;
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.boot.CommandLineRunner;
-import org.springframework.boot.SpringApplication;
-import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 

@@ -104,6 +104,7 @@ public class SheetServiceHelper {
         ValueRange response = Utilities.retry(() ->
                         getSheetsService().spreadsheets().values()
                                 .get(spreadsheetId, inputRange)
+                                .setValueRenderOption("UNFORMATTED_VALUE")
                                 .execute()
                 , 3);
 
@@ -132,7 +133,8 @@ public class SheetServiceHelper {
         BatchGetValuesResponse response = Utilities.retry(() -> getSheetsService().spreadsheets().values()
                 .batchGet(spreadsheetId)
                 .setRanges(ranges)
-                .setValueRenderOption("FORMATTED_VALUE") // Giống Apps Script
+                .setValueRenderOption("UNFORMATTED_VALUE") // Giống Apps Script
+//                .setValueRenderOption("UNFORMATTED_VALUE")
                 .execute(), 3);
 
         Map<String, List<List<Object>>> dataMap = new HashMap<>();

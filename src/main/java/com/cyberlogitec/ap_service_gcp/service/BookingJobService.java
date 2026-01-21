@@ -1,28 +1,21 @@
 package com.cyberlogitec.ap_service_gcp.service;
 
-import com.cyberlogitec.ap_service_gcp.dto.CreateFileExternalRequest;
-import com.cyberlogitec.ap_service_gcp.dto.DataToWriteDTO;
-import com.cyberlogitec.ap_service_gcp.dto.GroupedDataDTO;
+import com.cyberlogitec.ap_service_gcp.dto.*;
 import com.cyberlogitec.ap_service_gcp.job.extension.JobContext;
 import com.cyberlogitec.ap_service_gcp.model.FolderStructure;
 import com.cyberlogitec.ap_service_gcp.util.GlobalSettingBKG;
+import com.cyberlogitec.ap_service_gcp.util.ScriptSetting;
 import com.cyberlogitec.ap_service_gcp.util.ScriptSettingLoader;
 import com.cyberlogitec.ap_service_gcp.util.Utilities;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.api.services.drive.Drive;
 import com.google.api.services.drive.model.File;
 import com.google.api.services.drive.model.FileList;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
-import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
@@ -39,17 +32,19 @@ public class BookingJobService {
     private final DriveServiceHelper driveServiceHelper;
     private final ScriptSettingLoader scriptSettingLoader;
     private final GcsService gcsService;
+    private final SendGridService sendGridService;
+    private final ChartService chartService;
 
     public void prepareToCreateChildFoldersExternal(Object payload) throws IOException {
-        CreateFileExternalRequest createFileExternalRequest = this.objectMapper.convertValue(payload, CreateFileExternalRequest.class);
-        FolderStructure existingStructure = this.driveServiceHelper.getExistingFolderStructure(createFileExternalRequest.getToShareFolderId());
+        CreateFileExternalDTO createFileExternalDTO = this.objectMapper.convertValue(payload, CreateFileExternalDTO.class);
+        FolderStructure existingStructure = this.driveServiceHelper.getExistingFolderStructure(createFileExternalDTO.getToShareFolderId());
 
-        String workFileId = createFileExternalRequest.getWorkFileId();
-        String fileToShareId = createFileExternalRequest.getFileToShareId();
+        String workFileId = createFileExternalDTO.getWorkFileId();
+        String fileToShareId = createFileExternalDTO.getFileToShareId();
 
         GlobalSettingBKG gs = GlobalSettingBKG.builder()
                 .scriptSettingsPart1(scriptSettingLoader.getSettingsMap(workFileId))
-                .scriptSettingsPart2(scriptSettingLoader.getSettingsMap(createFileExternalRequest.getWorkFilePart2Id()))
+                .scriptSettingsPart2(scriptSettingLoader.getSettingsMap(createFileExternalDTO.getWorkFilePart2Id()))
                 .workFileId(workFileId)
                 .build();
 
@@ -66,27 +61,27 @@ public class BookingJobService {
         List<List<Object>> fileUnits = workFileDataMap.get(distListFileUnitDataRange);
         List<List<Object>> fileUnitsAccess = workFileDataMap.get(masterFOEditorDataRange);
 
-        createFileExternalRequest.setFolderStructure(existingStructure);
-        createFileExternalRequest.setGs(gs);
-        createFileExternalRequest.setFileUnits(fileUnits);
-        createFileExternalRequest.setFileUnitsAccess(fileUnitsAccess);
-        createFileExternalRequest.setFileUnitContractData(fileUnitContractData);
-        createFileExternalRequest.setApBookingData(apBookingData);
+        createFileExternalDTO.setFolderStructure(existingStructure);
+        createFileExternalDTO.setGs(gs);
+        createFileExternalDTO.setFileUnits(fileUnits);
+        createFileExternalDTO.setFileUnitsAccess(fileUnitsAccess);
+        createFileExternalDTO.setFileUnitContractData(fileUnitContractData);
+        createFileExternalDTO.setApBookingData(apBookingData);
 
         Utilities.logMemory("Before set data to context");
         JobContext context = new JobContext();
         context.setJobId(UUID.randomUUID().toString());
-        context.setTaskCount(createFileExternalRequest.getTaskCount());
-        context.setPayload(createFileExternalRequest);
+        context.setTaskCount(createFileExternalDTO.getTaskCount());
+        context.setPayload(createFileExternalDTO);
         Utilities.logMemory("Before runCloudRunJob");
         this.cloudRunJobService.runJob("CreateChildFoldersExternal", context);
         Utilities.logMemory("After runCloudRunJob");
     }
 
-    public void handleBookingCallBackResult(Map<String, Object> pubSubMessage) throws ExecutionException, InterruptedException, IOException {
-        System.out.println(this.objectMapper.writeValueAsString(pubSubMessage));
+    public void handleBookingCallBackResult(Map<String, Map<String, Object>> pubSubMessage) throws ExecutionException, InterruptedException, IOException {
+//        System.out.println(this.objectMapper.writeValueAsString(pubSubMessage));
 
-        Map<String, Object> message = (Map<String, Object>) pubSubMessage.get("message");
+        Map<String, Object> message = pubSubMessage.get("message");
         String dataBase64 = (String) message.get("data");
         String logJson = new String(Base64.getDecoder().decode(dataBase64));
         JsonNode rootNode = objectMapper.readTree(logJson);
@@ -146,149 +141,128 @@ public class BookingJobService {
         this.cloudRunJobService.deleteJobCache(executionName);
     }
 
-    private static final String SENDGRID_API_KEY = "YOUR_SENDGRID_KEY";
-    private static final String SENDER_EMAIL = "sender@example.com";
-    private static final String SENDER_NAME = "Sender Name";
-
     // Constants trạng thái
-    private static final String STATUS_SUCCESS = "Success";
     private static final String STATUS_ERROR_UNDEFINED = "Error";
     private static final String HISTORY_SKIPPED = "Skipped";
     private static final String HISTORY_ERROR = "Error Sending";
 
-    public String notifyToPICButton(String toShareFolderId, GlobalSettings gs, boolean isExternal, Map<String, String> fileToShareSettingsMap) {
-        String scriptStatus = STATUS_SUCCESS;
+    public void notifyToPICButton(String toShareFolderId, String workFileId, boolean isExternal) throws IOException {
+        ScriptSetting wfScriptSetting = this.scriptSettingLoader.getSettingsMap(workFileId);
+        ScriptSetting fileToShareSettingsMap = null;
+        // 1. Initialization
+        String fileNameToShare = wfScriptSetting.getAsString("bookingComparison_CreatefileToShare_FileName");
+        String salesWeek = wfScriptSetting.getAsString("control_MakeCopy_SalesWeek");
+        String fileToShareName = fileNameToShare + "_" + salesWeek;
+        String coEditorsSheetName = isExternal ? "Distribution List - External" : "Distribution List";
+        String distListRange = isExternal ? wfScriptSetting.getAsString("control_MakeCopy_DistList_DataRange_External") : wfScriptSetting.getAsString("control_MakeCopy_DistList_DataRange");
+        String ccEmailRange = isExternal ? wfScriptSetting.getAsString("ae1_NotificationSettings_CClist_External") : wfScriptSetting.getAsString("ae1_NotificationSettings_CClist");
+        String bccEmailRange = isExternal ? wfScriptSetting.getAsString("ae1_NotificationSettings_BCClist_External") : wfScriptSetting.getAsString("ae1_NotificationSettings_BCClist");
+        String emailContentRange = isExternal ? wfScriptSetting.getAsString("ae1_NotificationSettings_EmailContentRange_External") : wfScriptSetting.getAsString("ae1_NotificationSettings_EmailContentRange");
+        String targetWeekRange = wfScriptSetting.getAsString("ae1_NotificationSettings_targetWeek");
+        String foEditorRange = isExternal ? wfScriptSetting.getAsString("control_MakeCopy_FOEditors_DataRange_External") : wfScriptSetting.getAsString("control_MakeCopy_FOEditors_DataRange");
+        String fileUnitContractRange = wfScriptSetting.getAsString("control_MakeCopy_FileUnitContract_DataRange_External");
 
-        try {
-            // 1. Initialization
-            String fileNameToShare = gs.getSetting("bookingComparison_CreatefileToShare_FileName");
-            String salesWeek = gs.getSetting("control_MakeCopy_SalesWeek");
-            String fileToShareName = fileNameToShare + "_" + salesWeek;
+        // all data read one time
+        Map<String, List<List<Object>>> allDataWorkFile = sheetServiceHelper.getMappedBatchData(workFileId, List.of(fileUnitContractRange, foEditorRange, targetWeekRange, distListRange, ccEmailRange, bccEmailRange, emailContentRange));
 
-            String coEditorsSheetName = isExternal ? "Distribution List - External" : "Distribution List";
-            String distListRange = isExternal ? gs.getSetting("control_MakeCopy_DistList_DataRange_External") : gs.getSetting("control_MakeCopy_DistList_DataRange");
+        List<List<Object>> fileUnits = allDataWorkFile.get(distListRange);
+        String tradeName = wfScriptSetting.getAsString("control_MakeCopy_TradeName");
+        String folderSuffix = String.format("(%s_Booking Comparison Tool)", tradeName);
+        List<List<Object>> ccEmailListRaw = allDataWorkFile.get(ccEmailRange);
+        List<List<Object>> bccEmailListRaw = allDataWorkFile.get(bccEmailRange);
+        List<String> ccEmailList = Utilities.flattenList(ccEmailListRaw);
+        List<String> bccEmailList = Utilities.flattenList(bccEmailListRaw);
+        List<List<Object>> defaultEmailContent = allDataWorkFile.get(emailContentRange);
+        List<List<Object>> targetWeekFull = allDataWorkFile.get(targetWeekRange);
+        String targetWeek = nameTargetWeek(targetWeekFull);
+        List<List<Object>> fileUnitsAccess = allDataWorkFile.get(foEditorRange);
+        int emailStartColIndex = Integer.parseInt(wfScriptSetting.getAsString("control_MakeCopy_EmailStartColIndex")) - 1;
+        List<List<Object>> fileUnitContractData = isExternal ? allDataWorkFile.get(fileUnitContractRange) : new ArrayList<>();
+        System.out.println("Initialization completed");
 
-            // Giả định inputAPI trả về List<List<Object>>
-            List<List<Object>> fileUnits = this.sheetServiceHelper.inputAPI(gs.workFileId, distListRange);
-
-            String tradeName = gs.getSetting("control_MakeCopy_TradeName");
-            String folderSuffix = String.format("(%s_Booking Comparison Tool)", tradeName);
-
-            String ccEmailRange = isExternal ? gs.getSetting("ae1_NotificationSettings_CClist_External") : gs.getSetting("ae1_NotificationSettings_CClist");
-            String bccEmailRange = isExternal ? gs.getSetting("ae1_NotificationSettings_BCClist_External") : gs.getSetting("ae1_NotificationSettings_BCClist");
-
-            List<List<Object>> ccEmailListRaw = this.sheetServiceHelper.inputAPI(gs.workFileId, ccEmailRange);
-            List<List<Object>> bccEmailListRaw = this.sheetServiceHelper.inputAPI(gs.workFileId, bccEmailRange);
-
-            // Flatten lists
-            List<String> ccEmailList = flattenList(ccEmailListRaw);
-            List<String> bccEmailList = flattenList(bccEmailListRaw);
-
-            String emailContentRange = isExternal ? gs.getSetting("ae1_NotificationSettings_EmailContentRange_External") : gs.getSetting("ae1_NotificationSettings_EmailContentRange");
-            List<List<Object>> defaultEmailContent = this.sheetServiceHelper.inputAPI(gs.workFileId, emailContentRange);
-
-            String targetWeekRange = gs.getSetting("ae1_NotificationSettings_targetWeek");
-            List<List<Object>> targetWeekFull = this.sheetServiceHelper.inputAPI(gs.workFileId, targetWeekRange);
-            String targetWeek = nameTargetWeek(targetWeekFull);
-
-            String foEditorRange = isExternal ? gs.getSetting("control_MakeCopy_FOEditors_DataRange_External") : gs.getSetting("control_MakeCopy_FOEditors_DataRange");
-            List<List<Object>> fileUnitsAccess = this.sheetServiceHelper.inputAPI(gs.workFileId, foEditorRange);
-
-            // Lấy header để tìm index cột email (giả lập logic JS)
-            String foSettingsTitleRow = isExternal ? gs.getSetting("control_MakeCopy_FOSettings_TitleRow_External") : gs.getSetting("control_MakeCopy_FOSettings_TitleRow");
-            List<Object> headers = gsUtils.readRow(gs.workFileSS, coEditorsSheetName, Integer.parseInt(foSettingsTitleRow));
-
-            String emailColName = isExternal ? gs.getSetting("control_MakeCopy_EmailStartColName_External") : gs.getSetting("control_MakeCopy_EmailStartColName");
-            int emailStartColIndex = headers.indexOf(emailColName);
-
-            String fileUnitContractRange = gs.getSetting("control_MakeCopy_FileUnitContract_DataRange_External");
-            List<List<Object>> fileUnitContractData = isExternal ? this.sheetServiceHelper.inputAPI(gs.workFileId, fileUnitContractRange) : new ArrayList<>();
-
-            System.out.println("Initialization completed");
-
-            // 2. Read Existing Folders
-            Map<String, String> checkFolderNames = new HashMap<>();
-            String pageToken = null;
-            do {
-                FileList result = driveServiceHelper.findFolderInSubfolder(toShareFolderId, pageToken);
-                for (File file : result.getFiles()) {
-                    checkFolderNames.put(file.getName(), file.getId());
-                }
-                pageToken = result.getNextPageToken();
-            } while (pageToken != null);
+        // 2. Read Existing Folders
+        Map<String, String> checkFolderNames = new HashMap<>();
+        String pageToken = null;
+        do {
+            FileList result = driveServiceHelper.findFolderInSubfolder(toShareFolderId, pageToken);
+            for (File file : result.getFiles()) {
+                checkFolderNames.put(file.getName(), file.getId());
+            }
+            pageToken = result.getNextPageToken();
+        } while (pageToken != null);
 
 
-            List<List<Object>> notificationHistoryRecord = new ArrayList<>();
+        List<List<Object>> notificationHistoryRecord = new ArrayList<>();
 
-            // 3. Loop through units
-            for (int i = 0; i < fileUnits.size(); i++) {
-                String name = (String) fileUnits.get(i).get(0);
-                if (name == null || name.isEmpty()) continue;
+        // 3. Loop through units
+        for (int i = 0; i < fileUnits.size(); i++) {
+            String name = (String) fileUnits.get(i).get(0);
+            if (name == null || name.isEmpty()) continue;
 
-                if (isExternal) {
-                    // Check logic for external contract existence
-                    if (fileUnitContractData.size() <= i || fileUnitContractData.get(i).isEmpty() || fileUnitContractData.get(i).get(0).toString().isEmpty()) {
-                        continue;
-                    }
-                }
-
-                String folderName = name + " " + folderSuffix;
-                if (checkFolderNames.containsKey(folderName)) {
-                    String subFolderId = checkFolderNames.get(folderName);
-                    String fileUrl = "";
-
-                    // Find file in subfolder
-                    FileList files = driveServiceHelper.findFileInSubfolderByName(subFolderId, fileToShareName);
-
-                    if (!files.getFiles().isEmpty()) {
-                        fileUrl = files.getFiles().get(0).getWebViewLink();
-                    }
-
-                    // Prepare Emails
-                    List<Object> accessRow = fileUnitsAccess.get(i);
-                    List<String> emails = new ArrayList<>();
-                    if (emailStartColIndex != -1 && emailStartColIndex < accessRow.size()) {
-                        for (int k = emailStartColIndex; k < accessRow.size(); k++) {
-                            String e = accessRow.get(k).toString().trim();
-                            if (!e.isEmpty()) emails.add(e);
-                        }
-                    }
-
-                    EmailDTO emailToBeSent = new EmailDTO();
-                    emailToBeSent.fo = name;
-                    emailToBeSent.to = String.join(",", emails);
-                    emailToBeSent.cc = String.join(",", ccEmailList);
-                    emailToBeSent.bcc = String.join(",", bccEmailList);
-                    emailToBeSent.subject = createEmailSubject(defaultEmailContent, tradeName, name);
-                    emailToBeSent.body = createEmailBody(defaultEmailContent, name, fileUrl, tradeName, targetWeek);
-
-                    System.out.println("Processing email for: " + name);
-
-                    // Send Email
-                    List<Object> record;
-                    if (isExternal) {
-                        record = sendEmailWithChartSendGrid(emailToBeSent, fileUrl, gs, fileToShareSettingsMap);
-                    } else {
-                        record = sendEmailSendGrid(emailToBeSent);
-                    }
-                    notificationHistoryRecord.add(record);
+            if (isExternal) {
+                // Check logic for external contract existence
+                if (fileUnitContractData.size() <= i || fileUnitContractData.get(i).isEmpty() || fileUnitContractData.get(i).get(0).toString().isEmpty()) {
+                    continue;
                 }
             }
 
-            // 4. Update History Log
-            String historyRange = isExternal ? gs.getSetting("ae1_NotificationSettings_NotificationHistoryRange_External") : gs.getSetting("ae1_NotificationSettings_NotificationHistoryRange");
-            this.sheetServiceHelper.clearRange(gs.workFileId, historyRange);
-            this.sheetServiceHelper.outputAPIRows(historyRange, notificationHistoryRecord,gs.workFileId);
+            String folderName = name + " " + folderSuffix;
+            if (checkFolderNames.containsKey(folderName)) {
+                String subFolderId = checkFolderNames.get(folderName);
+                String fileUrl = "";
+                String fileId = null;
 
-        } catch (Exception e) {
-            e.printStackTrace();
-            scriptStatus = STATUS_ERROR_UNDEFINED;
+                // Find file in subfolder
+                FileList files = driveServiceHelper.findFileInSubfolderByName(subFolderId, fileToShareName);
+
+                if (!files.getFiles().isEmpty()) {
+                    fileUrl = files.getFiles().get(0).getWebViewLink();
+                    fileId = files.getFiles().get(0).getId();
+                }
+
+                // Prepare Emails
+                List<Object> accessRow = fileUnitsAccess.get(i);
+                List<String> emails = new ArrayList<>();
+                if (emailStartColIndex != -1 && emailStartColIndex < accessRow.size()) {
+                    for (int k = emailStartColIndex; k < accessRow.size(); k++) {
+                        String e = accessRow.get(k).toString().trim();
+                        if (!e.isEmpty()) emails.add(e);
+                    }
+                }
+
+                EmailDTO emailDTO = new EmailDTO();
+                emailDTO.setFo(name);
+                emailDTO.setTo(new HashSet<>(emails));
+                emailDTO.setCc(new HashSet<>(ccEmailList));
+                emailDTO.setBcc(new HashSet<>(bccEmailList));
+                emailDTO.setSubject(createEmailSubject(defaultEmailContent, tradeName, name));
+                emailDTO.setBody(createEmailBody(defaultEmailContent, name, fileUrl, tradeName, targetWeek));
+
+                System.out.println("Processing email for: " + name);
+
+                // Send Email
+                List<String> record;
+                if (isExternal) {
+                    if (fileToShareSettingsMap == null) {
+                        fileToShareSettingsMap = this.scriptSettingLoader.getSettingsMap(fileId);
+                    }
+                    record = sendEmailWithChartSendGrid(emailDTO, fileId, fileUrl, fileToShareSettingsMap);
+
+                } else {
+                    record = sendEmailSendGrid(emailDTO);
+                }
+                notificationHistoryRecord.add(new ArrayList<>(record));
+            }
         }
 
-        return scriptStatus;
+        // 4. Update History Log
+        String historyRange = isExternal ? wfScriptSetting.getAsString("ae1_NotificationSettings_NotificationHistoryRange_External") : wfScriptSetting.getAsString("ae1_NotificationSettings_NotificationHistoryRange");
+        this.sheetServiceHelper.clearRange(workFileId, historyRange);
+        this.sheetServiceHelper.outputAPIRows(historyRange, notificationHistoryRecord, workFileId);
+
+
     }
 
-    // --- Helper Methods ---
 
     private String createEmailSubject(List<List<Object>> emailContent, String tradeName, String foName) {
         String today = ZonedDateTime.now(ZoneId.of("Asia/Singapore")).format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
@@ -312,226 +286,72 @@ public class BookingJobService {
                         .replace("<FO INPUT LINK>", fileLink)
                         .replace("<Trade Name>", tradeName)
                         .replace("<TargetWeek>", targetWeek)
-                        .replace("<Date>", today);
+                        .replace("<Date>", today)
+                        .replace("\r\n", "\n").replace("\n", "<br>");
             }
         }
         return "";
     }
 
     // --- SendGrid Logic ---
-
-    public List<Object> sendEmailSendGrid(EmailDTO emailData) {
+    public List<String> sendEmailSendGrid(EmailDTO emailData) {
         String currentDate = ZonedDateTime.now(ZoneId.of("Asia/Singapore")).format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss Z"));
 
         try {
-            if (emailData.to == null || emailData.to.isEmpty()) {
-                return Arrays.asList(emailData.fo, HISTORY_SKIPPED, emailData.to, "");
+            if (emailData.getTo() == null || emailData.getTo().isEmpty()) {
+                return Arrays.asList(emailData.getFo(), HISTORY_SKIPPED, String.join(",", emailData.getTo()), "");
             }
-
-            // Parse emails
-            Set<String> toSet = parseEmails(emailData.to);
-            Set<String> ccSet = parseEmails(emailData.cc);
-            Set<String> bccSet = parseEmails(emailData.bcc);
-
-            // Deduplicate
+            Set<String> toSet = emailData.getTo();
+            Set<String> ccSet = emailData.getCc();
+            Set<String> bccSet = emailData.getBcc();
             ccSet.removeAll(toSet);
             bccSet.removeAll(toSet);
             bccSet.removeAll(ccSet);
-
-            // Prepare Payload Map
-            Map<String, Object> payload = new HashMap<>();
-            Map<String, Object> personalization = new HashMap<>();
-
-            personalization.put("to", toSet.stream().map(e -> Map.of("email", e)).collect(Collectors.toList()));
-            if (!ccSet.isEmpty()) personalization.put("cc", ccSet.stream().map(e -> Map.of("email", e)).collect(Collectors.toList()));
-            if (!bccSet.isEmpty()) personalization.put("bcc", bccSet.stream().map(e -> Map.of("email", e)).collect(Collectors.toList()));
-
-            payload.put("personalizations", Collections.singletonList(personalization));
-            payload.put("from", Map.of("email", SENDER_EMAIL, "name", SENDER_NAME));
-            payload.put("subject", emailData.subject);
-
-            String safeBody = (emailData.body != null ? emailData.body : "").replace("\r\n", "\n").replace("\n", "<br>");
-            payload.put("content", Collections.singletonList(Map.of("type", "text/html", "value", safeBody)));
-
-            // Call API
-            callSendGridApi(payload);
-
-            return Arrays.asList(emailData.fo, currentDate, emailData.to, emailData.cc, emailData.bcc);
+//            String safeBody = (emailData.getBody() != null ? emailData.getBody() : "").replace("\r\n", "\n").replace("\n", "<br>");
+            this.sendGridService.sendEmail(toSet, ccSet, bccSet, emailData.getSubject(), emailData.getBody(), null);
+//            return Arrays.asList(emailData.getFo(), currentDate, emailData.getTo(), emailData.getCc(), emailData.getBcc());
+            return Arrays.asList(emailData.getFo(), currentDate, String.join(",", emailData.getTo()), String.join(",", emailData.getCc()), String.join(",", emailData.getBcc()));
 
         } catch (Exception e) {
             e.printStackTrace();
-            return Arrays.asList(emailData.fo, HISTORY_ERROR, emailData.to, emailData.cc, emailData.bcc);
+            return Arrays.asList(emailData.getFo(), HISTORY_ERROR, String.join(",", emailData.getTo()), String.join(",", emailData.getCc()), String.join(",", emailData.getBcc()));
         }
     }
 
-    public List<Object> sendEmailWithChartSendGrid(EmailDTO emailData, String fileUrl, GlobalSettings gs, Map<String, String> settingsMap) {
-        // NOTE: Generating charts from Sheets in Java is complex.
-        // This function assumes you have a way to generate the Chart Image as a byte array (imageBytes).
-        // In real Java backend, you would read the raw data from 'pivotSourceDataRange',
-        // use JFreeChart/XChart to render a PNG, and use that.
-
+    public List<String> sendEmailWithChartSendGrid(EmailDTO emailData, String fileId, String fileUrl, ScriptSetting ftsSettingsMap) {
         String currentDate = ZonedDateTime.now(ZoneId.of("Asia/Singapore")).format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss Z"));
         try {
-            // 1. Pivot Table Creation (Calling the method below)
-            createPivotTableForChart(fileUrl, settingsMap.get("fileToShare_CreateChart_PivotDataRange_1"));
+            List<List<Object>> pivotData = this.sheetServiceHelper.inputAPI(fileId, ftsSettingsMap.getAsString("fileToShare_CreateChart_PivotDataRange_1"));
+            pivotData = Utilities.transposeList(pivotData, true);
+            List<String> weeks = pivotData.get(0).stream().map(Object::toString).toList();
+            List<Double> firmTeuList = pivotData.get(1).stream().map(o -> Double.parseDouble(o.toString())).toList();
+            List<Double> planTeuList = pivotData.get(2).stream().map(o -> Double.parseDouble(o.toString())).toList();
+            List<Double> planUtilTeuList = pivotData.get(3).stream().map(o -> Double.parseDouble(o.toString())).toList();
+            List<Double> firmTeuNonApList = pivotData.get(4).stream().map(o -> Double.parseDouble(o.toString())).toList();
+            byte[] chartImageBytes = this.chartService.generateChartForExternalEmail(weeks, firmTeuList, planTeuList, planUtilTeuList, firmTeuNonApList);
+            this.sendGridService.sendReportEmail(emailData.getTo(), emailData.getCc(), emailData.getBcc(), emailData.getSubject(), emailData.getBody(), chartImageBytes);
 
-            // 2. Generate/Get Images (Logo & Chart)
-            // Warning: Google Sheets API v4 does NOT support 'getBlob()' for charts.
-            // You must generate the chart locally in Java based on data.
-//            byte[] chartImageBytes = generateChartImageLocally(fileUrl); // Mock function
-            byte[] chartImageBytes = null; // Mock function
-//            byte[] logoImageBytes = getLogoFromDrive(gs.getSetting("createfileToShare_LogoFolderLink")); // Mock function
-            byte[] logoImageBytes =null;// Mock function
-
-            String chartBase64 = Base64.getEncoder().encodeToString(chartImageBytes);
-            String logoBase64 = Base64.getEncoder().encodeToString(logoImageBytes);
-
-            // 3. Build Body & Payload (similar to above but with attachments)
-            // ... (HTML construction logic matches GAS) ...
-
-            Map<String, Object> payload = new HashMap<>();
-            // ... (Add personalizations, from, subject as above) ...
-
-            // Attachments (Inline)
-            List<Map<String, Object>> attachments = new ArrayList<>();
-            attachments.add(Map.of(
-                    "content", chartBase64,
-                    "filename", "Chart1.png",
-                    "type", "image/png",
-                    "disposition", "inline",
-                    "content_id", "chart1"
-            ));
-            attachments.add(Map.of(
-                    "content", logoBase64,
-                    "filename", "logo.png",
-                    "type", "image/png",
-                    "disposition", "inline",
-                    "content_id", "logo"
-            ));
-            payload.put("attachments", attachments);
-
-            callSendGridApi(payload);
-
-            return Arrays.asList(emailData.fo, currentDate, emailData.to, emailData.cc, emailData.bcc);
+            return Arrays.asList(emailData.getFo(), currentDate, String.join(",", emailData.getTo()), String.join(",", emailData.getCc()), String.join(",", emailData.getBcc()));
         } catch (Exception e) {
             e.printStackTrace();
-            return Arrays.asList(emailData.fo, HISTORY_ERROR, emailData.to, emailData.cc, emailData.bcc);
+            return Arrays.asList(emailData.getFo(), HISTORY_ERROR, String.join(",", emailData.getTo()), String.join(",", emailData.getCc()), String.join(",", emailData.getBcc()));
         }
-    }
-
-    // --- Pivot Table Logic (Google Sheets API v4) ---
-    // Đây là phần phức tạp nhất khi chuyển từ GAS sang Java
-    public void createPivotTableForChart(String spreadsheetId, String sourceRange) throws IOException {
-        // Logic:
-        // 1. Get Sheet ID by Name
-        // 2. Clear old Pivot sheet or Create new
-        // 3. Construct BatchUpdate request to add Pivot Table
-
-        // Code ở đây sẽ rất dài (khoảng 100-200 dòng) để định nghĩa Rows, Columns, Values, Filters
-        // bằng các object của Google Sheets API (PivotGroup, PivotValue, etc.).
-        // Dưới đây là ví dụ cấu trúc:
-
-        /*
-        PivotTable pivotTable = new PivotTable()
-            .setSource(new GridRange()...)
-            .setRows(Arrays.asList(
-                new PivotGroup().setSourceColumnOffset(41).setShowTotals(false), // Row Group 41
-                new PivotGroup().setSourceColumnOffset(24).setShowTotals(false)  // Row Group 24
-            ))
-            .setValues(Arrays.asList(
-                 new PivotValue().setSourceColumnOffset(26).setSummarizeFunction("SUM"), // Firm TEU
-                 new PivotValue().setSourceColumnOffset(25).setSummarizeFunction("SUM")  // Plan TEU
-            ));
-
-        UpdateCellsRequest updateCells = new UpdateCellsRequest()
-            .setRows(Arrays.asList(new RowData().setValues(Arrays.asList(new CellData().setPivotTable(pivotTable)))))
-            .setStart(new GridCoordinate().setSheetId(pivotSheetId).setRowIndex(20).setColumnIndex(5)); // F21
-
-        BatchUpdateSpreadsheetRequest batchRequest = new BatchUpdateSpreadsheetRequest()
-            .setRequests(Arrays.asList(new Request().setUpdateCells(updateCells)));
-
-        sheetsService.spreadsheets().batchUpdate(spreadsheetId, batchRequest).execute();
-        */
-    }
-
-    // --- Utilities ---
-
-    private void callSendGridApi(Map<String, Object> payload) throws IOException, InterruptedException {
-        ObjectMapper mapper = new ObjectMapper();
-        String jsonBody = mapper.writeValueAsString(payload);
-
-        HttpClient client = HttpClient.newHttpClient();
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create("https://api.sendgrid.com/v3/mail/send"))
-                .header("Authorization", "Bearer " + SENDGRID_API_KEY)
-                .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(jsonBody))
-                .build();
-
-        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
-
-        if (response.statusCode() != 202) {
-            throw new RuntimeException("SendGrid Error: " + response.statusCode() + " " + response.body());
-        }
-    }
-
-    private Set<String> parseEmails(String emailStr) {
-        if (emailStr == null || emailStr.isEmpty()) return new HashSet<>();
-        return Arrays.stream(emailStr.split(","))
-                .map(String::trim)
-                .map(String::toLowerCase)
-                .filter(s -> !s.isEmpty())
-                .collect(Collectors.toSet());
     }
 
     private String nameTargetWeek(List<List<Object>> targetWeekFull) {
         List<Integer> nums = new ArrayList<>();
-        for(List<Object> row : targetWeekFull) {
-            for(Object cell : row) {
+        for (List<Object> row : targetWeekFull) {
+            for (Object cell : row) {
                 try {
-                    if(cell != null && !cell.toString().isEmpty())
+                    if (cell != null && !cell.toString().isEmpty())
                         nums.add(Integer.parseInt(cell.toString()));
-                } catch(NumberFormatException e){}
+                } catch (NumberFormatException ignored) {
+                }
             }
         }
-        if(nums.isEmpty()) return "";
+        if (nums.isEmpty()) return "";
         int min = Collections.min(nums);
         int max = Collections.max(nums);
         return "W" + (min % 100) + "-W" + (max % 100);
     }
-
-    private List<String> flattenList(List<List<Object>> raw) {
-        List<String> result = new ArrayList<>();
-        if (raw != null) {
-            for (List<Object> row : raw) {
-                for (Object item : row) {
-                    if (item != null && !item.toString().isEmpty()) {
-                        result.add(item.toString());
-                    }
-                }
-            }
-        }
-        return result;
-    }
-
-    // Inner class DTO
-    public static class EmailDTO {
-        String fo;
-        String to;
-        String cc;
-        String bcc;
-        String subject;
-        String body;
-    }
-
-    // Placeholder class cho Settings
-    public static class GlobalSettings {
-        public String workFileId;
-        public String workFileSS; // ID
-        public Map<String, String> settingsMap;
-        public String getSetting(String key) { return settingsMap.get(key); }
-    }
-
-
-
 }

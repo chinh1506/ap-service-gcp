@@ -1,6 +1,6 @@
 package com.cyberlogitec.ap_service_gcp.job.implement.bkg.aedomi;
 
-import com.cyberlogitec.ap_service_gcp.dto.CreateFileExternalRequest;
+import com.cyberlogitec.ap_service_gcp.dto.CreateFileExternalDTO;
 import com.cyberlogitec.ap_service_gcp.dto.DataToWriteDTO;
 import com.cyberlogitec.ap_service_gcp.dto.FolderInfo;
 import com.cyberlogitec.ap_service_gcp.job.extension.JobContext;
@@ -42,7 +42,7 @@ public class CreateChildFoldersExternal implements JobPlugin {
     @Override
     public void execute(JobContext context) throws Exception {
         System.out.println("Create ChildFolders External Job");
-        CreateFileExternalRequest payload = objectMapper.convertValue(context.getPayload(), CreateFileExternalRequest.class);
+        CreateFileExternalDTO payload = objectMapper.convertValue(context.getPayload(), CreateFileExternalDTO.class);
 
         String totalTasksStr = System.getenv("CLOUD_RUN_TASK_COUNT");
         String currentTaskIndexStr = System.getenv("CLOUD_RUN_TASK_INDEX");

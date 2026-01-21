@@ -9,7 +9,7 @@ import java.util.List;
 
 @Data
 @Builder
-public class CreateFileExternalRequest {
+public class CreateFileExternalDTO {
     private String workFileId;
     private String toShareFolderId;
     private int totalElement;
