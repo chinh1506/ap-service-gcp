@@ -14,6 +14,7 @@ import com.google.api.services.drive.model.FileList;
 import com.google.api.services.drive.model.Permission;
 import com.google.api.services.drive.model.PermissionList;
 import lombok.AllArgsConstructor;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -62,7 +63,7 @@ public class DriveServiceHelper {
         } while (pageToken != null);
     }
 
-    public FolderStructure getExistingFolderStructure(String parentFolderId) throws IOException{
+    public FolderStructure getExistingFolderStructure(String parentFolderId) throws IOException {
         return getExistingFolderStructure(parentFolderId, true);
     }
 
@@ -130,22 +131,23 @@ public class DriveServiceHelper {
 
     /**
      * Make copy a file and put it into a folder
-     * @param  sourceFileId file's id of a source file
-     * @param  targetFolderId folder's id will keep the new file
-     * @param  newFileName File's name of the new file
+     *
+     * @param sourceFileId   file's id of a source file
+     * @param targetFolderId folder's id will keep the new file
+     * @param newFileName    File's name of the new file
      * @return New file id
-     * */
+     */
     public String copyAndMoveFile(String sourceFileId, String targetFolderId, String newFileName) throws IOException {
         File resource = new File();
         resource.setName(newFileName);
         resource.setParents(Collections.singletonList(targetFolderId));
 
-        File copiedFile = Utilities.retry(()->{
+        File copiedFile = Utilities.retry(() -> {
             return getDriveService().files().copy(sourceFileId, resource)
                     .setSupportsAllDrives(true)
                     .setFields("id")
                     .execute();
-        },3);
+        }, 3);
 
         return copiedFile.getId();
     }
@@ -372,7 +374,8 @@ public class DriveServiceHelper {
                 .setIncludeItemsFromAllDrives(true)
                 .execute();
     }
-    public FileList findFolderInSubfolder(String folderId,String pageToken) throws IOException {
+
+    public FileList findFolderInSubfolder(String folderId, String pageToken) throws IOException {
         return this.getDriveService().files().list()
                 .setQ("'" + folderId + "' in parents  and mimeType = 'application/vnd.google-apps.folder' and trashed = false")
                 .setFields("nextPageToken, files(id, name)")
@@ -383,6 +386,23 @@ public class DriveServiceHelper {
                 .execute();
     }
 
+    public  boolean isManagerInDrive(String email, String folderId) throws IOException {
+        final List<String> ALLOWED_ROLES = List.of("organizer", "fileOrganizer");
+        Drive.Permissions.List request = this.getDriveService().permissions().list(folderId)
+                .setFields("permissions(emailAddress, role)")
+                .setSupportsAllDrives(true);
+
+        PermissionList permissions = request.execute();
+
+        for (Permission p : permissions.getPermissions()) {
+            if (email.equalsIgnoreCase(p.getEmailAddress())) {
+                if (ALLOWED_ROLES.contains(p.getRole())) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
 
 
 }
