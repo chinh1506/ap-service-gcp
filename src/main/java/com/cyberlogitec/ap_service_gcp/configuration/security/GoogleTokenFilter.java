@@ -11,6 +11,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Profile;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -24,10 +25,11 @@ import java.util.List;
 
 @Component
 @RequiredArgsConstructor
+@Profile({"service-prod","service-dev"})
 public class GoogleTokenFilter extends OncePerRequestFilter {
 
-    @Value("${app.pubsub.invoker-email}")
-    private String pubSubEmail;
+//    @Value("${app.pubsub.invoker-email}")
+    private String pubSubEmail= "526165826130-compute@developer.gserviceaccount.com";
 
     // Giả sử bạn đã có Service check quyền Drive (có Caching) như đã bàn ở trên
     private final DriveServiceHelper driveServiceHelper;
@@ -50,6 +52,7 @@ public class GoogleTokenFilter extends OncePerRequestFilter {
             } catch (GeneralSecurityException e) {
                 throw new RuntimeException(e);
             }
+
 
             if (idToken != null) {
                 String email = idToken.getPayload().getEmail();
