@@ -9,7 +9,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Component
-@Profile("job")
+@Profile({"job-dev","job-prod"})
 public class JobRegistry {
 
     private final Map<String, JobPlugin> jobMap;

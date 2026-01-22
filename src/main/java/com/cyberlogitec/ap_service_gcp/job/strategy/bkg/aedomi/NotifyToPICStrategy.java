@@ -14,6 +14,8 @@ import com.cyberlogitec.ap_service_gcp.util.Utilities;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.api.services.drive.model.FileList;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
@@ -23,9 +25,12 @@ import java.time.format.DateTimeFormatter;
 import java.util.*;
 
 import static com.cyberlogitec.ap_service_gcp.service.SendGridService.HISTORY_ERROR;
+import static com.cyberlogitec.ap_service_gcp.service.SendGridService.HISTORY_ERROR_FILE_NOT_FOUND;
 
+@Slf4j
 @Component
 @RequiredArgsConstructor
+@Profile({"job-prod", "job-dev"})
 public class NotifyToPICStrategy implements JobPlugin {
     private final ObjectMapper objectMapper;
     private final SheetServiceHelper sheetServiceHelper;
@@ -46,15 +51,11 @@ public class NotifyToPICStrategy implements JobPlugin {
         NotifyPicDTO payload = objectMapper.convertValue(context.getPayload(), NotifyPicDTO.class);
         String totalTasksStr = System.getenv("CLOUD_RUN_TASK_COUNT");
         String currentTaskIndexStr = System.getenv("CLOUD_RUN_TASK_INDEX");
-        int currentTaskIndex = Integer.parseInt(currentTaskIndexStr);
-        int totalTasks = Integer.parseInt(totalTasksStr);
-
-        TaskPartitioner.Partition partition = TaskPartitioner.calculatePartition(payload.getTotalElement(), totalTasks, currentTaskIndex);
-        System.out.println(partition);
-
-        if (partition.start < 0 || partition.end < 0) {
+        TaskPartitioner.Partition partition = Utilities.getCurrentPartition(totalTasksStr, currentTaskIndexStr, payload.getTotalElement());
+        if (partition == null) {
             System.exit(0);
         }
+
         notifyToPIC(payload, partition.start, partition.end, context.getJobId() + currentTaskIndexStr);
     }
 
@@ -62,9 +63,8 @@ public class NotifyToPICStrategy implements JobPlugin {
     public void notifyToPIC(NotifyPicDTO notifyPicDTO, int start, int end, String taskId) throws IOException {
 
         List<DataToWriteDTO> allResultToWrite = new ArrayList<>();
-        String toShareFolderId = notifyPicDTO.getToShareFolderId();
         String workFileId = notifyPicDTO.getWorkFileId();
-        boolean isExternal = notifyPicDTO.isExternal();
+        Boolean isExternal = notifyPicDTO.getIsExternal();
 
         ScriptSetting wfScriptSetting = notifyPicDTO.getWfScriptSetting(), fileToShareSettingsMap = null;
 
@@ -86,11 +86,9 @@ public class NotifyToPICStrategy implements JobPlugin {
         List<List<Object>> fileUnitContractData = isExternal ? notifyPicDTO.getFileUnitContractData() : new ArrayList<>();
         System.out.println("Initialization completed");
 
-        // 2. Read Existing Folders
         Map<String, FolderInfo> checkFolderNames = notifyPicDTO.getFolderStructure().getFolderMap();
 
         List<List<Object>> notificationHistoryRecord = new ArrayList<>();
-        // 3. Loop through units
         for (int i = start; i <= end; i++) {
             String name = (String) fileUnits.get(i).get(0);
             if (name == null || name.isEmpty()) continue;
@@ -128,7 +126,9 @@ public class NotifyToPICStrategy implements JobPlugin {
                 emailDTO.setBody(this.sendGridService.createEmailBody(defaultEmailContent, name, fileUrl, tradeName, targetWeek));
                 System.out.println("Processing email for: " + name);
                 List<String> record;
-                if (isExternal) {
+                if (fileId == null) {
+                    record = Arrays.asList(emailDTO.getFo(), HISTORY_ERROR_FILE_NOT_FOUND, String.join(",", emailDTO.getTo()), String.join(",", emailDTO.getCc()), String.join(",", emailDTO.getBcc()));
+                } else if (isExternal) {
                     if (fileToShareSettingsMap == null) {
                         fileToShareSettingsMap = this.scriptSettingLoader.getSettingsMap(fileId);
                     }
@@ -166,10 +166,8 @@ public class NotifyToPICStrategy implements JobPlugin {
 
             return Arrays.asList(emailData.getFo(), currentDate, String.join(",", emailData.getTo()), String.join(",", emailData.getCc()), String.join(",", emailData.getBcc()));
         } catch (Exception e) {
-            e.printStackTrace();
+            log.error(e.getMessage());
             return Arrays.asList(emailData.getFo(), HISTORY_ERROR, String.join(",", emailData.getTo()), String.join(",", emailData.getCc()), String.join(",", emailData.getBcc()));
         }
     }
-
-
 }

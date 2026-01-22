@@ -198,4 +198,23 @@ public class Utilities {
         int max = Collections.max(nums);
         return "W" + (min % 100) + "-W" + (max % 100);
     }
+
+    public void ensureSize(List<Object> list, int size) {
+        while (list.size() < size) {
+            list.add("");
+        }
+    }
+
+    public TaskPartitioner.Partition getCurrentPartition(String totalTasksStr, String currentTaskIndexStr, int totalElement) {
+        int currentTaskIndex = Integer.parseInt(currentTaskIndexStr);
+        int totalTasks = Integer.parseInt(totalTasksStr);
+
+        TaskPartitioner.Partition partition = TaskPartitioner.calculatePartition(totalElement, totalTasks, currentTaskIndex);
+        System.out.println(partition);
+
+        if (partition.start < 0 || partition.end < 0) {
+            return null;
+        }
+        return partition;
+    }
 }

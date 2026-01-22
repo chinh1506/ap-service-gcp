@@ -36,8 +36,11 @@ public class BkgNotifyToPICEvent implements EventPlugin {
         JobCache jobCache = (JobCache) context.getPayload();
         String jobId = jobCache.getJobId();
         String executionName = jobCache.getExecutionName();
-        int succeeded = context.getPubSubMessage().getProtoPayload().getResponse().getStatus().getSucceededCount();
-        int failed = context.getPubSubMessage().getProtoPayload().getResponse().getStatus().getFailedCount();
+        Integer succeeded = context.getPubSubMessage().getProtoPayload().getResponse().getStatus().getSucceededCount();
+        Integer failed = context.getPubSubMessage().getProtoPayload().getResponse().getStatus().getFailedCount();
+
+        if (succeeded == null) succeeded = 0;
+        if (failed == null) failed = 0;
 
         List<DataToWriteDTO> allDataToWriteDTOs = new ArrayList<>();
         for (int i = 0; i < succeeded + failed; i++) {

@@ -26,8 +26,8 @@ RUN apt-get update && apt-get install -y \
 # Copy file JAR từ giai đoạn builder sang
 COPY --from=builder /app/target/*.jar app.jar
 
-# Tạo thư mục secrets nếu bạn cần mount file JSON từ ngoài vào
-RUN mkdir /secrets
+## Tạo thư mục secrets nếu bạn cần mount file JSON từ ngoài vào
+#RUN mkdir /secrets
 
 # Thiết lập chế độ Headless cho Java để XChart vẽ biểu đồ không cần màn hình
 ENV JAVA_OPTS="-Djava.awt.headless=true -Dfile.encoding=UTF-8"

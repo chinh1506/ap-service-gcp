@@ -3,6 +3,7 @@ package com.cyberlogitec.ap_service_gcp.service;
 import com.cyberlogitec.ap_service_gcp.job.extension.JobContext;
 import com.cyberlogitec.ap_service_gcp.model.JobCache;
 import com.cyberlogitec.ap_service_gcp.util.Utilities;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.api.gax.longrunning.OperationFuture;
 import com.google.cloud.firestore.Firestore;
 import com.google.cloud.run.v2.*;
@@ -24,6 +25,7 @@ public class CloudRunJobService {
     private String cloudRunJobName;
     private final Firestore firestore;
     private final GcsService gcsService;
+    private final ObjectMapper objectMapper;
 
 
     public void runJob(String jobName, JobContext context) {
@@ -70,7 +72,7 @@ public class CloudRunJobService {
 
             String[] splitName = execution.getName().split("/");
             String executionName = splitName[splitName.length - 1];
-            this.setJobCache(new JobCache(executionName, context.getJobId(), jobName));
+            this.setJobCache(new JobCache(executionName, context.getJobId(), jobName, this.objectMapper.writeValueAsString(context.getProperties())));
 
         } catch (Exception e) {
             throw new RuntimeException(e);

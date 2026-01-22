@@ -42,6 +42,7 @@ public class SendGridService {
     private final SpringTemplateEngine templateEngine;
     private static final String HISTORY_SKIPPED = "Skipped";
     public static final String HISTORY_ERROR = "Error Sending";
+    public static final String HISTORY_ERROR_FILE_NOT_FOUND = "File to share not found";
 
     /**
      * Hàm gửi email đa năng (Full option)

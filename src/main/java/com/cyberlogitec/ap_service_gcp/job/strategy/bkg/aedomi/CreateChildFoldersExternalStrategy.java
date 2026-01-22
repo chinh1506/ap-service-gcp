@@ -25,7 +25,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 @Component
-@Profile("job")
+@Profile({"job-prod","job-dev"})
 @AllArgsConstructor
 public class CreateChildFoldersExternalStrategy implements JobPlugin {
 
@@ -41,18 +41,13 @@ public class CreateChildFoldersExternalStrategy implements JobPlugin {
 
     @Override
     public void execute(JobContext context) throws Exception {
-        System.out.println("Create ChildFolders External Job");
-        CreateFileToShareDTO payload = objectMapper.convertValue(context.getPayload(), CreateFileToShareDTO.class);
         String totalTasksStr = System.getenv("CLOUD_RUN_TASK_COUNT");
         String currentTaskIndexStr = System.getenv("CLOUD_RUN_TASK_INDEX");
-        System.out.println(currentTaskIndexStr);
-        int currentTaskIndex = Integer.parseInt(currentTaskIndexStr);
-        int totalTasks = Integer.parseInt(totalTasksStr);
+        System.out.println("Create ChildFolders External Job");
+        CreateFileToShareDTO payload = objectMapper.convertValue(context.getPayload(), CreateFileToShareDTO.class);
+        TaskPartitioner.Partition partition = Utilities.getCurrentPartition(totalTasksStr, currentTaskIndexStr, payload.getTotalElement());
 
-        TaskPartitioner.Partition partition = TaskPartitioner.calculatePartition(payload.getTotalElement(), totalTasks, currentTaskIndex);
-        System.out.println(partition);
-
-        if (partition.start < 0 || partition.end < 0) {
+        if (partition == null) {
             System.exit(0);
         }
 
@@ -72,6 +67,8 @@ public class CreateChildFoldersExternalStrategy implements JobPlugin {
         System.exit(0);
 
     }
+
+
 
     public void createAe2ChildFoldersExternal(
             String toShareFolderId,
@@ -108,7 +105,7 @@ public class CreateChildFoldersExternalStrategy implements JobPlugin {
             List<Object> currentRow = fileUnits.get(i);
             String name = (!currentRow.isEmpty()) ? String.valueOf(currentRow.get(0)) : "";
             if (name == null || name.isEmpty()) {
-                ensureSize(currentRow, 3);
+                Utilities.ensureSize(currentRow, 3);
                 currentRow.set(1, "");
                 currentRow.set(2, "");
                 continue;
@@ -163,7 +160,7 @@ public class CreateChildFoldersExternalStrategy implements JobPlugin {
                 countryFolderUrl = newStruct.getFolderMap().get("main").getUrl();
                 archiveFolderUrl = newStruct.getArchiveMap().get("archive").getUrl();
             }
-            ensureSize(currentRow, 3);
+            Utilities.ensureSize(currentRow, 3);
             currentRow.set(1, countryFolderUrl);
             currentRow.set(2, archiveFolderUrl);
             System.out.println("..Copying master file");
@@ -198,13 +195,6 @@ public class CreateChildFoldersExternalStrategy implements JobPlugin {
                 .collect(Collectors.toList());
 
         this.sheetServiceHelper.outputAPIRows(dataRange, filteredData, targetFileId);
-    }
-
-
-    private void ensureSize(List<Object> list, int size) {
-        while (list.size() < size) {
-            list.add("");
-        }
     }
 
 }

@@ -6,7 +6,7 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
 @Component
-@Profile("job")
+@Profile({"job-dev","job-prod"})
 public class DistributeData implements JobPlugin {
     @Override
     public String getJobName() {

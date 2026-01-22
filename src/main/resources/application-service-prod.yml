@@ -1,0 +1,17 @@
+spring:
+  application:
+    name: ap-service-gcp
+  main:
+    web-application-type: servlet
+  cloud:
+    gcp:
+      firestore:
+        project-id: ${GOOGLE_CLOUD_PROJECT_ID}
+        emulator:
+          enabled: false
+      cloud-run-app-name: "${CLOUD_RUN_APP_NAME:cloud-run-app}"
+
+#      credentials:
+#        location=:classpath:credentials.json
+server:
+  port: ${PORT:8080}

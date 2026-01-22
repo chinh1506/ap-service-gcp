@@ -2,7 +2,9 @@ package com.cyberlogitec.ap_service_gcp.service.pubsub.strategy.aebooking;
 
 import com.cyberlogitec.ap_service_gcp.dto.DataToWriteDTO;
 import com.cyberlogitec.ap_service_gcp.dto.GroupedDataDTO;
+import com.cyberlogitec.ap_service_gcp.dto.request.NotifyToPicRequest;
 import com.cyberlogitec.ap_service_gcp.model.JobCache;
+import com.cyberlogitec.ap_service_gcp.service.BookingJobService;
 import com.cyberlogitec.ap_service_gcp.service.CloudRunJobService;
 import com.cyberlogitec.ap_service_gcp.service.GcsService;
 import com.cyberlogitec.ap_service_gcp.service.SheetServiceHelper;
@@ -26,6 +28,7 @@ public class CreateFolderExternalEvent implements EventPlugin {
     private final GcsService gcsService;
     private final SheetServiceHelper sheetServiceHelper;
     private final CloudRunJobService cloudRunJobService;
+    private final BookingJobService bookingJobService;
 
     @Override
     public String getEventName() {
@@ -37,8 +40,11 @@ public class CreateFolderExternalEvent implements EventPlugin {
         JobCache jobCache = (JobCache) context.getPayload();
         String jobId = jobCache.getJobId();
         String executionName = jobCache.getExecutionName();
-        int succeeded = context.getPubSubMessage().getProtoPayload().getResponse().getStatus().getSucceededCount();
-        int failed = context.getPubSubMessage().getProtoPayload().getResponse().getStatus().getFailedCount();
+        Integer succeeded = context.getPubSubMessage().getProtoPayload().getResponse().getStatus().getSucceededCount();
+        Integer failed = context.getPubSubMessage().getProtoPayload().getResponse().getStatus().getFailedCount();
+        if (succeeded == null) succeeded = 0;
+        if (failed == null) failed = 0;
+
 
         List<DataToWriteDTO> allDataToWriteDTOs = new ArrayList<>();
         for (int i = 0; i < succeeded + failed; i++) {
@@ -46,7 +52,7 @@ public class CreateFolderExternalEvent implements EventPlugin {
             List<DataToWriteDTO> list = this.objectMapper.readValue(bytes, new TypeReference<List<DataToWriteDTO>>() {
             });
             allDataToWriteDTOs.addAll(list);
-            this.gcsService.deleteFile(jobId + i);
+//            this.gcsService.deleteFile(jobId + i);
         }
 
         Map<String, List<DataToWriteDTO>> groupedMap = allDataToWriteDTOs.stream().collect(Collectors.groupingBy(DataToWriteDTO::getFileId));
@@ -73,8 +79,10 @@ public class CreateFolderExternalEvent implements EventPlugin {
                 throw new RuntimeException(e);
             }
         });
-        this.gcsService.deleteFile(jobId);
-        this.cloudRunJobService.deleteJobCache(executionName);
 
+        NotifyToPicRequest notifyToPicRequest = objectMapper.readValue(jobCache.getJsonProperties(), NotifyToPicRequest.class);
+        bookingJobService.notifyToPIC(notifyToPicRequest);
+//        this.gcsService.deleteFile(jobId);
+//        this.cloudRunJobService.deleteJobCache(executionName);
     }
 }

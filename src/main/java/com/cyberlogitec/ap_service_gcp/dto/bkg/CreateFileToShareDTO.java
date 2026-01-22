@@ -2,13 +2,17 @@ package com.cyberlogitec.ap_service_gcp.dto.bkg;
 
 import com.cyberlogitec.ap_service_gcp.dto.FolderStructure;
 import com.cyberlogitec.ap_service_gcp.util.GlobalSettingBKG;
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.util.List;
 
 @Data
 @Builder
+@AllArgsConstructor
+@NoArgsConstructor
 public class CreateFileToShareDTO {
     private String workFileId;
     private String toShareFolderId;
