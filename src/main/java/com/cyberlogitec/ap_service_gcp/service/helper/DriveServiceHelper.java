@@ -1,8 +1,8 @@
-package com.cyberlogitec.ap_service_gcp.service;
+package com.cyberlogitec.ap_service_gcp.service.helper;
 
 import com.cyberlogitec.ap_service_gcp.configuration.GoogleClientPool;
-import com.cyberlogitec.ap_service_gcp.dto.FolderInfo;
-import com.cyberlogitec.ap_service_gcp.dto.FolderStructure;
+import com.cyberlogitec.ap_service_gcp.dto.FolderInfoDTO;
+import com.cyberlogitec.ap_service_gcp.dto.FolderStructureDTO;
 import com.cyberlogitec.ap_service_gcp.util.Utilities;
 import com.google.api.client.googleapis.batch.BatchRequest;
 import com.google.api.client.googleapis.batch.json.JsonBatchCallback;
@@ -14,7 +14,6 @@ import com.google.api.services.drive.model.FileList;
 import com.google.api.services.drive.model.Permission;
 import com.google.api.services.drive.model.PermissionList;
 import lombok.AllArgsConstructor;
-import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -63,12 +62,12 @@ public class DriveServiceHelper {
         } while (pageToken != null);
     }
 
-    public FolderStructure getExistingFolderStructure(String parentFolderId) throws IOException {
+    public FolderStructureDTO getExistingFolderStructure(String parentFolderId) throws IOException {
         return getExistingFolderStructure(parentFolderId, true);
     }
 
-    public FolderStructure getExistingFolderStructure(String parentFolderId, boolean includeNested) throws IOException {
-        FolderStructure structure = new FolderStructure();
+    public FolderStructureDTO getExistingFolderStructure(String parentFolderId, boolean includeNested) throws IOException {
+        FolderStructureDTO structure = new FolderStructureDTO();
         List<String> childFolderIds = new ArrayList<>();
 
         String pageToken = null;
@@ -85,7 +84,7 @@ public class DriveServiceHelper {
             var result = request.execute();
             if (result.getFiles() != null) {
                 for (File file : result.getFiles()) {
-                    structure.getFolderMap().put(file.getName(), new FolderInfo(file.getId(), file.getWebViewLink()));
+                    structure.getFolderMap().put(file.getName(), new FolderInfoDTO(file.getId(), file.getWebViewLink()));
                     childFolderIds.add(file.getId());
                 }
             }
@@ -119,7 +118,7 @@ public class DriveServiceHelper {
                 var archiveResult = archiveRequest.execute();
                 if (archiveResult.getFiles() != null) {
                     for (File file : archiveResult.getFiles()) {
-                        structure.getArchiveMap().put(file.getName(), new FolderInfo(file.getId(), file.getWebViewLink()));
+                        structure.getArchiveMap().put(file.getName(), new FolderInfoDTO(file.getId(), file.getWebViewLink()));
                     }
                 }
                 archivePageToken = archiveResult.getNextPageToken();
@@ -155,8 +154,8 @@ public class DriveServiceHelper {
     /**
      * Tạo cấu trúc thư mục mới
      */
-    public FolderStructure createNewFolderStructure(String folderName, String archiveFolderName, String parentFolderId, List<String> editorEmails, String workFileId) throws IOException {
-        FolderStructure result = new FolderStructure();
+    public FolderStructureDTO createNewFolderStructure(String folderName, String archiveFolderName, String parentFolderId, List<String> editorEmails, String workFileId) throws IOException {
+        FolderStructureDTO result = new FolderStructureDTO();
 
         // 1. Tạo Main
         File mainMeta = new File();
@@ -169,7 +168,7 @@ public class DriveServiceHelper {
                 .setSupportsAllDrives(true)
                 .execute();
 
-        result.getFolderMap().put("main", new FolderInfo(mainFolder.getId(), mainFolder.getWebViewLink()));
+        result.getFolderMap().put("main", new FolderInfoDTO(mainFolder.getId(), mainFolder.getWebViewLink()));
 
         // 2. Tạo Archive
         File archMeta = new File();
@@ -182,7 +181,7 @@ public class DriveServiceHelper {
                 .setSupportsAllDrives(true)
                 .execute();
 
-        result.getArchiveMap().put("archive", new FolderInfo(archFolder.getId(), archFolder.getWebViewLink()));
+        result.getArchiveMap().put("archive", new FolderInfoDTO(archFolder.getId(), archFolder.getWebViewLink()));
 
         if (editorEmails != null && !editorEmails.isEmpty()) {
             foldersUpdate(workFileId, mainFolder.getId(), editorEmails);
@@ -270,7 +269,7 @@ public class DriveServiceHelper {
                 .filter(email -> !finalCurrentEmails.contains(email))
                 .filter(email -> !finalParentEmails.contains(email))
                 .filter(email -> !finalMasterEmails.contains(email))
-                .collect(Collectors.toList());
+                .toList();
 
         System.out.println("..To Add: " + emailsToAdd);
 

@@ -2,6 +2,7 @@ package com.cyberlogitec.ap_service_gcp.service;
 
 import com.cyberlogitec.ap_service_gcp.job.extension.JobContext;
 import com.cyberlogitec.ap_service_gcp.model.JobCache;
+import com.cyberlogitec.ap_service_gcp.service.helper.GcsService;
 import com.cyberlogitec.ap_service_gcp.util.Utilities;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.api.gax.longrunning.OperationFuture;
@@ -72,7 +73,7 @@ public class CloudRunJobService {
 
             String[] splitName = execution.getName().split("/");
             String executionName = splitName[splitName.length - 1];
-            this.setJobCache(new JobCache(executionName, context.getJobId(), jobName, this.objectMapper.writeValueAsString(context.getProperties())));
+            this.setJobCache(new JobCache(executionName, context.getJobId(), jobName));
 
         } catch (Exception e) {
             throw new RuntimeException(e);
@@ -111,6 +112,4 @@ public class CloudRunJobService {
     public void deleteJobCache(String executionName) {
         this.firestore.collection("job_collection").document(executionName).delete();
     }
-
-
 }

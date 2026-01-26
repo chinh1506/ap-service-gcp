@@ -2,9 +2,11 @@ package com.cyberlogitec.ap_service_gcp.service;
 
 import com.cyberlogitec.ap_service_gcp.dto.bkg.CreateFileToShareDTO;
 import com.cyberlogitec.ap_service_gcp.dto.bkg.NotifyPicDTO;
-import com.cyberlogitec.ap_service_gcp.dto.request.NotifyToPicRequest;
+import com.cyberlogitec.ap_service_gcp.dto.bkg.NotifyToPicRequest;
 import com.cyberlogitec.ap_service_gcp.job.extension.JobContext;
-import com.cyberlogitec.ap_service_gcp.dto.FolderStructure;
+import com.cyberlogitec.ap_service_gcp.dto.FolderStructureDTO;
+import com.cyberlogitec.ap_service_gcp.service.helper.DriveServiceHelper;
+import com.cyberlogitec.ap_service_gcp.service.helper.SheetServiceHelper;
 import com.cyberlogitec.ap_service_gcp.util.GlobalSettingBKG;
 import com.cyberlogitec.ap_service_gcp.util.ScriptSetting;
 import com.cyberlogitec.ap_service_gcp.util.ScriptSettingLoader;
@@ -18,7 +20,7 @@ import java.util.*;
 
 @Service
 @RequiredArgsConstructor
-public class BookingJobService {
+public class AeDomiBookingService {
     private final CloudRunJobService cloudRunJobService;
     private final ObjectMapper objectMapper;
     private final SheetServiceHelper sheetServiceHelper;
@@ -27,7 +29,7 @@ public class BookingJobService {
 
     public void prepareToCreateChildFoldersExternal(Object payload) throws IOException {
         CreateFileToShareDTO createFileDTO = this.objectMapper.convertValue(payload, CreateFileToShareDTO.class);
-        FolderStructure existingStructure = this.driveServiceHelper.getExistingFolderStructure(createFileDTO.getToShareFolderId());
+        FolderStructureDTO existingStructure = this.driveServiceHelper.getExistingFolderStructure(createFileDTO.getToShareFolderId());
 
         String workFileId = createFileDTO.getWorkFileId();
         String fileToShareId = createFileDTO.getFileToShareId();
@@ -65,13 +67,14 @@ public class BookingJobService {
         context.setTaskCount(createFileDTO.getTaskCount());
         context.setPayload(createFileDTO);
         Utilities.logMemory("Before runCloudRunJob");
-        context.setProperties(NotifyToPicRequest.builder()
-                .isExternal(true)
-                .totalElement(createFileDTO.getTotalElement())
-                .taskCount(createFileDTO.getTaskCount())
-                .toShareFolderId(createFileDTO.getToShareFolderId())
-                .workFileId(workFileId)
-                .build());
+//        context.setProperties(NotifyToPicRequest.builder()
+//                .isExternal(true)
+//                .totalElement(createFileDTO.getTotalElement())
+//                .taskCount(createFileDTO.getTaskCount())
+//                .toShareFolderId(createFileDTO.getToShareFolderId())
+//                .workFileId(workFileId)
+//                .wfSctiptSetting(gs.getScriptSettingsPart1())
+//                .build());
         this.cloudRunJobService.runJob("CreateChildFoldersExternal", context);
         Utilities.logMemory("After runCloudRunJob");
     }
@@ -82,7 +85,7 @@ public class BookingJobService {
         String workFileId = notifyToPicRequest.getWorkFileId();
         boolean isExternal = notifyToPicRequest.getIsExternal();
 
-        ScriptSetting wfScriptSetting = this.scriptSettingLoader.getSettingsMap(workFileId);
+        ScriptSetting wfScriptSetting = notifyToPicRequest.getWfSctiptSetting();
         String distListRange = isExternal ? wfScriptSetting.getAsString("control_MakeCopy_DistList_DataRange_External") : wfScriptSetting.getAsString("control_MakeCopy_DistList_DataRange");
         String ccEmailRange = isExternal ? wfScriptSetting.getAsString("ae1_NotificationSettings_CClist_External") : wfScriptSetting.getAsString("ae1_NotificationSettings_CClist");
         String bccEmailRange = isExternal ? wfScriptSetting.getAsString("ae1_NotificationSettings_BCClist_External") : wfScriptSetting.getAsString("ae1_NotificationSettings_BCClist");
@@ -100,7 +103,7 @@ public class BookingJobService {
         List<List<Object>> fileUnitsAccess = allDataWorkFile.get(foEditorRange);
         List<List<Object>> fileUnitContractData = isExternal ? allDataWorkFile.get(fileUnitContractRange) : new ArrayList<>();
 
-        FolderStructure folderStructure = this.driveServiceHelper.getExistingFolderStructure(toShareFolderId);
+        FolderStructureDTO folderStructure = this.driveServiceHelper.getExistingFolderStructure(toShareFolderId);
 
         NotifyPicDTO notifyToPicDto = NotifyPicDTO.builder()
                 .fileUnits(fileUnits)
@@ -124,7 +127,6 @@ public class BookingJobService {
                 .jobId(UUID.randomUUID().toString())
                 .payload(notifyToPicDto)
                 .taskCount(notifyToPicRequest.getTaskCount())
-
                 .build();
 
         this.cloudRunJobService.runJob("BkgNotifyToPIC", context);

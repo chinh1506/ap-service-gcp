@@ -1,13 +1,15 @@
-package com.cyberlogitec.ap_service_gcp.service;
+package com.cyberlogitec.ap_service_gcp.service.helper;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.cloud.WriteChannel;
 import com.google.cloud.storage.*;
+import com.google.common.collect.Lists;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.channels.Channels;
+import java.util.List;
 
 @Service
 public class GcsService {
@@ -68,6 +70,19 @@ public class GcsService {
         try (WriteChannel writer = storage.writer(blobInfo);
              OutputStream os = Channels.newOutputStream(writer)) {
             objectMapper.writeValue(os, data);
+        }
+    }
+
+    public void deleteMultipleFiles(List<String> fileNames) {
+        Storage storage = StorageOptions.getDefaultInstance().getService();
+        List<List<String>> chunks = Lists.partition(fileNames, 100);
+        for (List<String> chunk : chunks) {
+            StorageBatch batch = storage.batch();
+            for (String fileName : chunk) {
+                BlobId blobId = BlobId.of(this.bucketName, fileName);
+                batch.delete(blobId);
+            }
+            batch.submit();
         }
     }
 }

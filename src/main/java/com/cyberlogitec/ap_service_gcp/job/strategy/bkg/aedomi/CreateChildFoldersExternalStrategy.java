@@ -2,13 +2,13 @@ package com.cyberlogitec.ap_service_gcp.job.strategy.bkg.aedomi;
 
 import com.cyberlogitec.ap_service_gcp.dto.bkg.CreateFileToShareDTO;
 import com.cyberlogitec.ap_service_gcp.dto.DataToWriteDTO;
-import com.cyberlogitec.ap_service_gcp.dto.FolderInfo;
+import com.cyberlogitec.ap_service_gcp.dto.FolderInfoDTO;
 import com.cyberlogitec.ap_service_gcp.job.extension.JobContext;
 import com.cyberlogitec.ap_service_gcp.job.extension.JobPlugin;
-import com.cyberlogitec.ap_service_gcp.dto.FolderStructure;
-import com.cyberlogitec.ap_service_gcp.service.DriveServiceHelper;
-import com.cyberlogitec.ap_service_gcp.service.GcsService;
-import com.cyberlogitec.ap_service_gcp.service.SheetServiceHelper;
+import com.cyberlogitec.ap_service_gcp.dto.FolderStructureDTO;
+import com.cyberlogitec.ap_service_gcp.service.helper.DriveServiceHelper;
+import com.cyberlogitec.ap_service_gcp.service.helper.GcsService;
+import com.cyberlogitec.ap_service_gcp.service.helper.SheetServiceHelper;
 import com.cyberlogitec.ap_service_gcp.util.GlobalSettingBKG;
 import com.cyberlogitec.ap_service_gcp.util.ScriptSetting;
 import com.cyberlogitec.ap_service_gcp.util.TaskPartitioner;
@@ -77,7 +77,7 @@ public class CreateChildFoldersExternalStrategy implements JobPlugin {
             GlobalSettingBKG gs,
             String fileToShareSsID,
             String fileToShareName,
-            FolderStructure existingStructure,
+            FolderStructureDTO existingStructure,
             List<List<Object>> fileUnits,
             List<List<Object>> fileUnitsAccess,
             List<List<Object>> fileUnitContractData,
@@ -88,8 +88,8 @@ public class CreateChildFoldersExternalStrategy implements JobPlugin {
         System.out.println("Preparing to handle " + startRow + " - " + endRow);
 
         List<DataToWriteDTO> allResultToWrite = new ArrayList<>();
-        Map<String, FolderInfo> folderMap = existingStructure.getFolderMap();
-        Map<String, FolderInfo> archiveMap = existingStructure.getArchiveMap();
+        Map<String, FolderInfoDTO> folderMap = existingStructure.getFolderMap();
+        Map<String, FolderInfoDTO> archiveMap = existingStructure.getArchiveMap();
         String workFileId = gs.getWorkFileId();
         ScriptSetting scriptSettingsPart2 = gs.getScriptSettingsPart2();
         ScriptSetting scriptSettings = gs.getScriptSettingsPart1();
@@ -139,11 +139,11 @@ public class CreateChildFoldersExternalStrategy implements JobPlugin {
             String countryFolderId, countryFolderUrl, archiveFolderUrl;
             if (folderMap.containsKey(folderName)) {
                 System.out.println("...The folder have existed: .");
-                FolderInfo existingFolder = folderMap.get(folderName);
+                FolderInfoDTO existingFolder = folderMap.get(folderName);
                 countryFolderId = existingFolder.getId();
                 countryFolderUrl = existingFolder.getUrl();
 
-                FolderInfo archiveFolder = archiveMap.get(archiveFolderName);
+                FolderInfoDTO archiveFolder = archiveMap.get(archiveFolderName);
                 if (archiveFolder != null) {
                     archiveFolderUrl = archiveFolder.getUrl();
                     this.driveServiceHelper.archiveOldFiles(countryFolderId, archiveFolder.getId());
@@ -154,7 +154,7 @@ public class CreateChildFoldersExternalStrategy implements JobPlugin {
 
             } else {
                 System.out.println("...Create new folder: .");
-                FolderStructure newStruct = this.driveServiceHelper.createNewFolderStructure(folderName, archiveFolderName, toShareFolderId, null, workFileId);
+                FolderStructureDTO newStruct = this.driveServiceHelper.createNewFolderStructure(folderName, archiveFolderName, toShareFolderId, null, workFileId);
 
                 countryFolderId = newStruct.getFolderMap().get("main").getId();
                 countryFolderUrl = newStruct.getFolderMap().get("main").getUrl();

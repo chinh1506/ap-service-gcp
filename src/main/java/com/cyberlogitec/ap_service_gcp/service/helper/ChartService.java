@@ -1,4 +1,4 @@
-package com.cyberlogitec.ap_service_gcp.service;
+package com.cyberlogitec.ap_service_gcp.service.helper;
 
 import org.knowm.xchart.BitmapEncoder;
 import org.knowm.xchart.CategoryChart;

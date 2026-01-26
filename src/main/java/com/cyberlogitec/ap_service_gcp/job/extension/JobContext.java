@@ -13,6 +13,5 @@ import lombok.NoArgsConstructor;
 public class JobContext {
     private String jobId;
     private Object payload;
-    private Object properties;
     private int taskCount = 1;
 }

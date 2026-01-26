@@ -1,12 +1,13 @@
 package com.cyberlogitec.ap_service_gcp.service;
 
-import com.cyberlogitec.ap_service_gcp.dto.FolderStructure;
+import com.cyberlogitec.ap_service_gcp.dto.FolderStructureDTO;
 import com.cyberlogitec.ap_service_gcp.dto.bkg.CreateFileToShareDTO;
-import com.cyberlogitec.ap_service_gcp.dto.request.NotifyToPicRequest;
+import com.cyberlogitec.ap_service_gcp.dto.bkg.NotifyToPicRequest;
 import com.cyberlogitec.ap_service_gcp.job.extension.JobContext;
+import com.cyberlogitec.ap_service_gcp.service.helper.DriveServiceHelper;
+import com.cyberlogitec.ap_service_gcp.service.helper.SheetServiceHelper;
 import com.cyberlogitec.ap_service_gcp.util.ScriptSetting;
 import com.cyberlogitec.ap_service_gcp.util.ScriptSettingLoader;
-import com.cyberlogitec.ap_service_gcp.util.Utilities;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -15,7 +16,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
-import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.io.IOException;
@@ -29,7 +29,7 @@ import static org.mockito.Mockito.*;
 class BookingJobServiceTest {
 
     @InjectMocks
-    private BookingJobService bookingJobService;
+    private AeDomiBookingService bookingJobService;
 
     @Mock
     private CloudRunJobService cloudRunJobService;
@@ -76,7 +76,7 @@ class BookingJobServiceTest {
         dto.setTaskCount(5);
         dto.setTotalElement(100);
 
-        FolderStructure folderStructure = new FolderStructure(); // Giả lập object
+        FolderStructureDTO folderStructure = new FolderStructureDTO(); // Giả lập object
 
         // 2. Mock behavior
         when(objectMapper.convertValue(payload, CreateFileToShareDTO.class)).thenReturn(dto);
@@ -158,7 +158,7 @@ class BookingJobServiceTest {
         allData.put("ContractRangeEx", dummyData);
 
         when(sheetServiceHelper.getMappedBatchData(eq("workFile123"), anyList())).thenReturn(allData);
-        when(driveServiceHelper.getExistingFolderStructure("shareFolder123")).thenReturn(new FolderStructure());
+        when(driveServiceHelper.getExistingFolderStructure("shareFolder123")).thenReturn(new FolderStructureDTO());
 
         // 3. Execute
         bookingJobService.notifyToPIC(request);
@@ -209,7 +209,7 @@ class BookingJobServiceTest {
         allData.put("ContractRangeEx", dummyData); // Vẫn phải put vào map vì sheetServiceHelper request list có key này
 
         when(sheetServiceHelper.getMappedBatchData(eq("workFile123"), anyList())).thenReturn(allData);
-        when(driveServiceHelper.getExistingFolderStructure("shareFolder123")).thenReturn(new FolderStructure());
+        when(driveServiceHelper.getExistingFolderStructure("shareFolder123")).thenReturn(new FolderStructureDTO());
 
         // 3. Execute
         bookingJobService.notifyToPIC(request);

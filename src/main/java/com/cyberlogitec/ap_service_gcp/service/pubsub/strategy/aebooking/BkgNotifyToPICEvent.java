@@ -2,18 +2,22 @@ package com.cyberlogitec.ap_service_gcp.service.pubsub.strategy.aebooking;
 
 import com.cyberlogitec.ap_service_gcp.dto.DataToWriteDTO;
 import com.cyberlogitec.ap_service_gcp.dto.GroupedDataDTO;
+import com.cyberlogitec.ap_service_gcp.dto.bkg.NotifyPicDTO;
+import com.cyberlogitec.ap_service_gcp.job.extension.JobContext;
 import com.cyberlogitec.ap_service_gcp.model.JobCache;
 import com.cyberlogitec.ap_service_gcp.service.CloudRunJobService;
-import com.cyberlogitec.ap_service_gcp.service.GcsService;
-import com.cyberlogitec.ap_service_gcp.service.SheetServiceHelper;
+import com.cyberlogitec.ap_service_gcp.service.helper.GcsService;
+import com.cyberlogitec.ap_service_gcp.service.helper.SheetServiceHelper;
 import com.cyberlogitec.ap_service_gcp.service.pubsub.abstractmethod.EventContext;
 import com.cyberlogitec.ap_service_gcp.service.pubsub.abstractmethod.EventPlugin;
+import com.cyberlogitec.ap_service_gcp.util.ScriptSetting;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -26,6 +30,7 @@ public class BkgNotifyToPICEvent implements EventPlugin {
     private final GcsService gcsService;
     private final SheetServiceHelper sheetServiceHelper;
     private final CloudRunJobService cloudRunJobService;
+
     @Override
     public String getEventName() {
         return "BkgNotifyToPIC";
@@ -42,31 +47,53 @@ public class BkgNotifyToPICEvent implements EventPlugin {
         if (succeeded == null) succeeded = 0;
         if (failed == null) failed = 0;
 
+        byte[] jobBytes = this.gcsService.getFile(jobId);
+        JobContext jobContext = this.objectMapper.readValue(jobBytes, JobContext.class);
+        NotifyPicDTO payload = objectMapper.convertValue(jobContext.getPayload(), NotifyPicDTO.class);
+        ScriptSetting wfScriptSetting = payload.getWfScriptSetting();
+
+        DataToWriteDTO status = DataToWriteDTO.builder()
+                .range(wfScriptSetting.getAsString("control_MakeCopy_Status_External"))
+                .data(List.of(List.of("Completed")))
+                .fileId(payload.getWorkFileId())
+                .build();
+        DataToWriteDTO scriptTime = DataToWriteDTO.builder()
+                .range(wfScriptSetting.getAsString("control_MakeCopy_Timestamp_External"))
+                .data(List.of(List.of(LocalDateTime.now().toString())))
+                .fileId(payload.getWorkFileId())
+                .build();
+
+
         List<DataToWriteDTO> allDataToWriteDTOs = new ArrayList<>();
+        List<String> fileNamesToDelete = new ArrayList<>();
+        allDataToWriteDTOs.add(status);
+        allDataToWriteDTOs.add(scriptTime);
         for (int i = 0; i < succeeded + failed; i++) {
-            byte[] bytes = this.gcsService.getFile(jobId + i);
+            String fileName = jobId + i;
+            byte[] bytes = this.gcsService.getFile(fileName);
             List<DataToWriteDTO> list = this.objectMapper.readValue(bytes, new TypeReference<List<DataToWriteDTO>>() {
             });
             allDataToWriteDTOs.addAll(list);
-            this.gcsService.deleteFile(jobId + i);
+            fileNamesToDelete.add(fileName);
         }
 
-        Map<String, List<DataToWriteDTO>> groupedMap = allDataToWriteDTOs.stream().collect(Collectors.groupingBy(DataToWriteDTO::getFileId));
-        List<GroupedDataDTO> result = groupedMap.entrySet().stream().map(entry -> {
-            String currentFileId = entry.getKey();
-            List<DataToWriteDTO> items = entry.getValue();
-
-            List<String> ranges = items.stream()
-                    .map(DataToWriteDTO::getRange)
-                    .collect(Collectors.toList());
-
-            List<List<List<Object>>> dataList = items.stream()
-                    .map(DataToWriteDTO::getData)
-                    .collect(Collectors.toList());
-
-            // Tạo đối tượng mới
-            return new GroupedDataDTO(currentFileId, ranges, dataList);
-        }).toList();
+//        Map<String, List<DataToWriteDTO>> groupedMap = allDataToWriteDTOs.stream().collect(Collectors.groupingBy(DataToWriteDTO::getFileId));
+//        List<GroupedDataDTO> result = groupedMap.entrySet().stream().map(entry -> {
+//            String currentFileId = entry.getKey();
+//            List<DataToWriteDTO> items = entry.getValue();
+//
+//            List<String> ranges = items.stream()
+//                    .map(DataToWriteDTO::getRange)
+//                    .collect(Collectors.toList());
+//
+//            List<List<List<Object>>> dataList = items.stream()
+//                    .map(DataToWriteDTO::getData)
+//                    .collect(Collectors.toList());
+//
+//            // Tạo đối tượng mới
+//            return new GroupedDataDTO(currentFileId, ranges, dataList);
+//        }).toList();
+        List<GroupedDataDTO> result = GroupedDataDTO.toGroupedDataDTO(allDataToWriteDTOs);
 
         result.forEach(groupedDataDTO -> {
             try {
@@ -75,7 +102,9 @@ public class BkgNotifyToPICEvent implements EventPlugin {
                 throw new RuntimeException(e);
             }
         });
-        this.gcsService.deleteFile(jobId);
+
+        fileNamesToDelete.add(jobId);
+        this.gcsService.deleteMultipleFiles(fileNamesToDelete);
         this.cloudRunJobService.deleteJobCache(executionName);
     }
 }

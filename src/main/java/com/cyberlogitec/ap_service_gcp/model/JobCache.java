@@ -13,5 +13,4 @@ public class JobCache{
     private String executionName;
     private String jobId;
     private String jobName;
-    private String jsonProperties;
 }

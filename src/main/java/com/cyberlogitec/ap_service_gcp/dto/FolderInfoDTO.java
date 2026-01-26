@@ -9,7 +9,7 @@ import lombok.NoArgsConstructor;
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor
-public  class FolderInfo {
+public  class FolderInfoDTO {
     String id;
     String url;
 }

@@ -1,8 +1,6 @@
 package com.cyberlogitec.ap_service_gcp.util;
 
-import com.cyberlogitec.ap_service_gcp.service.SheetServiceHelper;
-import com.google.api.services.sheets.v4.Sheets;
-import com.google.api.services.sheets.v4.model.ValueRange;
+import com.cyberlogitec.ap_service_gcp.service.helper.SheetServiceHelper;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;

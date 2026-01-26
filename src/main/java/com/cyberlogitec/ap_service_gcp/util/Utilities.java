@@ -217,4 +217,35 @@ public class Utilities {
         }
         return partition;
     }
+
+    public String getIdFromUrl(String url) {
+        if (url == null || url.isEmpty()) {
+            return "";
+        }
+
+        String splitter = "";
+        if (url.contains("/spreadsheets/d/")) {
+            splitter = "/spreadsheets/d/";
+        } else if (url.contains("/folders/")) {
+            splitter = "/folders/";
+        } else {
+            return "";
+        }
+        int splitIndex = url.indexOf(splitter);
+        if (splitIndex == -1) {
+            return "";
+        }
+
+        String remaining = url.substring(splitIndex + splitter.length());
+        int slashIndex = remaining.indexOf("/");
+        if (slashIndex != -1) {
+            remaining = remaining.substring(0, slashIndex);
+        }
+        int questionMarkIndex = remaining.indexOf("?");
+        if (questionMarkIndex != -1) {
+            remaining = remaining.substring(0, questionMarkIndex);
+        }
+
+        return remaining;
+    }
 }

@@ -1,5 +1,6 @@
-package com.cyberlogitec.ap_service_gcp.dto.request;
+package com.cyberlogitec.ap_service_gcp.dto.bkg;
 
+import com.cyberlogitec.ap_service_gcp.util.ScriptSetting;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -15,4 +16,5 @@ public class NotifyToPicRequest {
     private Boolean isExternal;
     private int taskCount;
     private int totalElement;
+    private ScriptSetting wfSctiptSetting;
 }

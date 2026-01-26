@@ -2,7 +2,7 @@ package com.cyberlogitec.ap_service_gcp.job;
 
 import com.cyberlogitec.ap_service_gcp.job.extension.JobContext;
 import com.cyberlogitec.ap_service_gcp.job.extension.JobRunner;
-import com.cyberlogitec.ap_service_gcp.service.GcsService;
+import com.cyberlogitec.ap_service_gcp.service.helper.GcsService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Profile;

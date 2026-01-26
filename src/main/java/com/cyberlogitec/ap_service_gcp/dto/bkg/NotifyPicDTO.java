@@ -1,6 +1,6 @@
 package com.cyberlogitec.ap_service_gcp.dto.bkg;
 
-import com.cyberlogitec.ap_service_gcp.dto.FolderStructure;
+import com.cyberlogitec.ap_service_gcp.dto.FolderStructureDTO;
 import com.cyberlogitec.ap_service_gcp.util.ScriptSetting;
 import lombok.Builder;
 import lombok.Data;
@@ -15,7 +15,7 @@ public class NotifyPicDTO {
     private int totalElement;
     private int taskCount;
     private Boolean isExternal;
-    private FolderStructure folderStructure;
+    private FolderStructureDTO folderStructure;
     private ScriptSetting wfScriptSetting;
     private List<List<Object>> fileUnits;
     private List<List<Object>> ccEmailListRaw;

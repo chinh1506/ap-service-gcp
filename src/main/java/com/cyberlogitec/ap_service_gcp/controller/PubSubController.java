@@ -1,6 +1,6 @@
 package com.cyberlogitec.ap_service_gcp.controller;
 
-import com.cyberlogitec.ap_service_gcp.service.BookingJobService;
+import com.cyberlogitec.ap_service_gcp.service.AeDomiBookingService;
 import com.cyberlogitec.ap_service_gcp.service.PubSubService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Profile;
@@ -17,7 +17,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 @Profile({"service-dev","service-prod"})
 public class PubSubController {
-    private final BookingJobService bookingJobService;
+    private final AeDomiBookingService bookingJobService;
     private final PubSubService pubSubService;
 
     @PostMapping("/job-result")

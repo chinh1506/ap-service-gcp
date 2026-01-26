@@ -2,12 +2,14 @@ package com.cyberlogitec.ap_service_gcp.service.pubsub.strategy.aebooking;
 
 import com.cyberlogitec.ap_service_gcp.dto.DataToWriteDTO;
 import com.cyberlogitec.ap_service_gcp.dto.GroupedDataDTO;
-import com.cyberlogitec.ap_service_gcp.dto.request.NotifyToPicRequest;
+import com.cyberlogitec.ap_service_gcp.dto.bkg.CreateFileToShareDTO;
+import com.cyberlogitec.ap_service_gcp.dto.bkg.NotifyToPicRequest;
+import com.cyberlogitec.ap_service_gcp.job.extension.JobContext;
 import com.cyberlogitec.ap_service_gcp.model.JobCache;
-import com.cyberlogitec.ap_service_gcp.service.BookingJobService;
+import com.cyberlogitec.ap_service_gcp.service.AeDomiBookingService;
 import com.cyberlogitec.ap_service_gcp.service.CloudRunJobService;
-import com.cyberlogitec.ap_service_gcp.service.GcsService;
-import com.cyberlogitec.ap_service_gcp.service.SheetServiceHelper;
+import com.cyberlogitec.ap_service_gcp.service.helper.GcsService;
+import com.cyberlogitec.ap_service_gcp.service.helper.SheetServiceHelper;
 import com.cyberlogitec.ap_service_gcp.service.pubsub.abstractmethod.EventContext;
 import com.cyberlogitec.ap_service_gcp.service.pubsub.abstractmethod.EventPlugin;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -28,7 +30,7 @@ public class CreateFolderExternalEvent implements EventPlugin {
     private final GcsService gcsService;
     private final SheetServiceHelper sheetServiceHelper;
     private final CloudRunJobService cloudRunJobService;
-    private final BookingJobService bookingJobService;
+    private final AeDomiBookingService bookingJobService;
 
     @Override
     public String getEventName() {
@@ -45,32 +47,18 @@ public class CreateFolderExternalEvent implements EventPlugin {
         if (succeeded == null) succeeded = 0;
         if (failed == null) failed = 0;
 
-
         List<DataToWriteDTO> allDataToWriteDTOs = new ArrayList<>();
+        List<String> fileNamesToDelete = new ArrayList<>();
         for (int i = 0; i < succeeded + failed; i++) {
-            byte[] bytes = this.gcsService.getFile(jobId + i);
+            String fileName = jobId + i;
+            byte[] bytes = this.gcsService.getFile(fileName);
             List<DataToWriteDTO> list = this.objectMapper.readValue(bytes, new TypeReference<List<DataToWriteDTO>>() {
             });
             allDataToWriteDTOs.addAll(list);
-//            this.gcsService.deleteFile(jobId + i);
+            fileNamesToDelete.add(fileName);
         }
 
-        Map<String, List<DataToWriteDTO>> groupedMap = allDataToWriteDTOs.stream().collect(Collectors.groupingBy(DataToWriteDTO::getFileId));
-        List<GroupedDataDTO> result = groupedMap.entrySet().stream().map(entry -> {
-            String currentFileId = entry.getKey();
-            List<DataToWriteDTO> items = entry.getValue();
-
-            List<String> ranges = items.stream()
-                    .map(DataToWriteDTO::getRange)
-                    .collect(Collectors.toList());
-
-            List<List<List<Object>>> dataList = items.stream()
-                    .map(DataToWriteDTO::getData)
-                    .collect(Collectors.toList());
-
-            // Tạo đối tượng mới
-            return new GroupedDataDTO(currentFileId, ranges, dataList);
-        }).toList();
+        List<GroupedDataDTO> result = GroupedDataDTO.toGroupedDataDTO(allDataToWriteDTOs);
 
         result.forEach(groupedDataDTO -> {
             try {
@@ -79,10 +67,22 @@ public class CreateFolderExternalEvent implements EventPlugin {
                 throw new RuntimeException(e);
             }
         });
+        byte[] bytes = this.gcsService.getFile(jobId);
+        JobContext jobContext = this.objectMapper.readValue(bytes, JobContext.class);
+        CreateFileToShareDTO createFileToShareDTO = objectMapper.convertValue(jobContext.getPayload(), CreateFileToShareDTO.class);
 
-        NotifyToPicRequest notifyToPicRequest = objectMapper.readValue(jobCache.getJsonProperties(), NotifyToPicRequest.class);
+        NotifyToPicRequest notifyToPicRequest = NotifyToPicRequest.builder()
+                .wfSctiptSetting(createFileToShareDTO.getGs().getScriptSettingsPart1())
+                .isExternal(true)
+                .totalElement(createFileToShareDTO.getTotalElement())
+                .taskCount(jobContext.getTaskCount())
+                .toShareFolderId(createFileToShareDTO.getToShareFolderId())
+                .workFileId(createFileToShareDTO.getWorkFileId())
+                .build();
         bookingJobService.notifyToPIC(notifyToPicRequest);
-//        this.gcsService.deleteFile(jobId);
-//        this.cloudRunJobService.deleteJobCache(executionName);
+
+        fileNamesToDelete.add(jobId);
+        this.gcsService.deleteMultipleFiles(fileNamesToDelete);
+        this.cloudRunJobService.deleteJobCache(executionName);
     }
 }

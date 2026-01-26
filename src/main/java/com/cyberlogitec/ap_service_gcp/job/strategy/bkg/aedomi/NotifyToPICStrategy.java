@@ -2,11 +2,11 @@ package com.cyberlogitec.ap_service_gcp.job.strategy.bkg.aedomi;
 
 import com.cyberlogitec.ap_service_gcp.dto.DataToWriteDTO;
 import com.cyberlogitec.ap_service_gcp.dto.EmailDTO;
-import com.cyberlogitec.ap_service_gcp.dto.FolderInfo;
+import com.cyberlogitec.ap_service_gcp.dto.FolderInfoDTO;
 import com.cyberlogitec.ap_service_gcp.dto.bkg.NotifyPicDTO;
 import com.cyberlogitec.ap_service_gcp.job.extension.JobContext;
 import com.cyberlogitec.ap_service_gcp.job.extension.JobPlugin;
-import com.cyberlogitec.ap_service_gcp.service.*;
+import com.cyberlogitec.ap_service_gcp.service.helper.*;
 import com.cyberlogitec.ap_service_gcp.util.ScriptSetting;
 import com.cyberlogitec.ap_service_gcp.util.ScriptSettingLoader;
 import com.cyberlogitec.ap_service_gcp.util.TaskPartitioner;
@@ -24,8 +24,8 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 
-import static com.cyberlogitec.ap_service_gcp.service.SendGridService.HISTORY_ERROR;
-import static com.cyberlogitec.ap_service_gcp.service.SendGridService.HISTORY_ERROR_FILE_NOT_FOUND;
+import static com.cyberlogitec.ap_service_gcp.service.helper.SendGridService.HISTORY_ERROR;
+import static com.cyberlogitec.ap_service_gcp.service.helper.SendGridService.HISTORY_ERROR_FILE_NOT_FOUND;
 
 @Slf4j
 @Component
@@ -86,7 +86,7 @@ public class NotifyToPICStrategy implements JobPlugin {
         List<List<Object>> fileUnitContractData = isExternal ? notifyPicDTO.getFileUnitContractData() : new ArrayList<>();
         System.out.println("Initialization completed");
 
-        Map<String, FolderInfo> checkFolderNames = notifyPicDTO.getFolderStructure().getFolderMap();
+        Map<String, FolderInfoDTO> checkFolderNames = notifyPicDTO.getFolderStructure().getFolderMap();
 
         List<List<Object>> notificationHistoryRecord = new ArrayList<>();
         for (int i = start; i <= end; i++) {

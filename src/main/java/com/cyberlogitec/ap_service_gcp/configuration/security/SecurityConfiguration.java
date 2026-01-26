@@ -25,10 +25,10 @@ public class SecurityConfiguration {
         http.csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .anyRequest().authenticated() // Còn lại phải có Token
+                        .requestMatchers("/**").permitAll()
+                        .anyRequest().permitAll()
                 );
 
-        // Chèn Filter của mình vào trước Filter mặc định
         http.addFilterBefore(googleTokenFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();

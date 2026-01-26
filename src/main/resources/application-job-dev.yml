@@ -10,3 +10,5 @@ spring:
         emulator:
           enabled: false
       cloud-run-app-name: "${CLOUD_RUN_APP_NAME:cloud-run-app}"
+      pubsub:
+        service-account-email: "${SERVICE_ACCOUNT_EMAIL:526165826130-compute@developer.gserviceaccount.com}"
