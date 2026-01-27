@@ -1,4 +1,4 @@
-package com.cyberlogitec.ap_service_gcp.job.strategy.ap.master;
+package com.cyberlogitec.ap_service_gcp.job.strategy.ap.multi.prepare;
 
 import com.cyberlogitec.ap_service_gcp.job.extension.JobContext;
 import com.cyberlogitec.ap_service_gcp.job.extension.JobPlugin;
@@ -7,15 +7,14 @@ import org.springframework.stereotype.Component;
 
 @Component
 @Profile({"job-dev","job-prod"})
-public class CreateFileJob implements JobPlugin {
-
+public class DistributeData implements JobPlugin {
     @Override
     public String getJobName() {
-        return "CreateFileJob";
+        return "DistributeData";
     }
 
     @Override
     public void execute(JobContext context) throws Exception {
-
+        System.out.println("DistributeData");
     }
 }

@@ -177,7 +177,6 @@ public class SheetServiceHelper {
 
 
         try {
-            // 1. Phân loại Email (User vs Group)
             Editors editors = new Editors();
             List<String> userMails = new ArrayList<>();
             List<String> groupMails = new ArrayList<>();
@@ -198,7 +197,6 @@ public class SheetServiceHelper {
             // 2. Xử lý Chunking (Chia nhỏ mảng nếu > 30 mục)
             int chunkSize = 30;
 
-            // Nếu danh sách rỗng, trả về luôn
             if (lockRanges == null || lockRanges.isEmpty()) return;
 
             for (int i = 0; i < lockRanges.size(); i += chunkSize) {
@@ -221,7 +219,6 @@ public class SheetServiceHelper {
                     throw new IOException("Tiến trình bị gián đoạn", e);
                 }
             }
-
         } catch (Exception e) {
             System.err.println("Failed with error: " + e.getMessage());
             throw new IOException(e);
@@ -260,8 +257,6 @@ public class SheetServiceHelper {
 
     private boolean isEmailGroup(String email) {
         if (email == null) return false;
-        // Logic giả định: Google Groups thường kết thúc bằng googlegroups.com
-        // Hoặc bạn có thể tùy chỉnh logic này theo domain công ty bạn.
         return email.endsWith("@googlegroups.com") || email.contains("-group@");
     }
 
