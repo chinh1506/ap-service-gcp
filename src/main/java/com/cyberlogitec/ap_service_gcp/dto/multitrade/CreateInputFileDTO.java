@@ -8,7 +8,6 @@ import lombok.NoArgsConstructor;
 import lombok.experimental.FieldDefaults;
 
 import java.util.List;
-import java.util.Map;
 
 @Data
 @FieldDefaults(level = lombok.AccessLevel.PRIVATE)
@@ -18,23 +17,22 @@ import java.util.Map;
 public class CreateInputFileDTO {
     int totalElement;
     int taskCount;
-    ScriptSetting masterScriptSetting;
-    ScriptSetting file3ScriptSetting;
-    int numOfContractOffice;
-    List<List<Object>> contractOfficesAndLinks;
-    List<List<Object>> contractOfficesAndLinksNoCode;
-    String inputFileNamePartial;
-    List<String> masterGHQRHQEditors;
-    List<List<Object>> contractOfficesAndLinksAll;
-    List<String> additionalInputFile;
-    Map<String, String> inputFileTemplateSettingsMap; // Cần truyền map này vào
-    String inputFileTemplateId; // ID file template
+    Integer numOfContractOffice;
+    String file2TemplateId; // ID file template
     String file0Id;
     String file1Id;
     String file3Id;
+    String file2NamePartial;
+    ScriptSetting masterScriptSetting;
+    ScriptSetting file3ScriptSetting;
+    ScriptSetting file2TemplateScriptSetting; // Cần truyền map này vào
+    List<String> additionalInputFile;
+    List<String> masterGHQRHQEditors;
+    List<List<Object>> contractOfficesAndLinks;
+    List<List<Object>> contractOfficesAndLinksNoCode;
+    List<List<Object>> contractOfficesAndLinksAll;
     List<List<Integer>> ae2FirstApLockRanges;
     List<List<Integer>> ae2FirstAddApLockRanges;
     List<List<Integer>> ae2FirstApExpandRanges;
     List<List<Integer>> ae2FirstAddApExpandRanges;
-    String foEditorSheetName;
 }

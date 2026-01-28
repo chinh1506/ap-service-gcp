@@ -2,6 +2,7 @@ package com.cyberlogitec.ap_service_gcp.configuration;
 
 import com.google.api.client.googleapis.auth.oauth2.GoogleClientSecrets;
 import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport;
+import com.google.api.client.http.HttpRequestInitializer;
 import com.google.api.client.http.javanet.NetHttpTransport;
 import com.google.api.client.json.gson.GsonFactory;
 import com.google.api.services.drive.Drive;
@@ -33,6 +34,9 @@ public class GoogleClientConfiguration {
     @Value("${GOOGLE_CREDENTIALS_PATHS}")
     private List<String> CREDENTIALS_FILE_PATHS;
 
+    final int CONNECT_TIMEOUT = 3 * 60000;
+    final int READ_TIMEOUT = 5 * 60000;
+
     private static final List<String> GLOBAL_SCOPES = Arrays.asList(
             SheetsScopes.SPREADSHEETS,
             DriveScopes.DRIVE,
@@ -54,12 +58,18 @@ public class GoogleClientConfiguration {
                     .fromStream(Objects.requireNonNull(GoogleClientConfiguration.class.getResourceAsStream(path)))
                     .createScoped(GLOBAL_SCOPES);
 
-            Sheets sheets = new Sheets.Builder(transport, jsonFactory, new HttpCredentialsAdapter(credential))
+            HttpRequestInitializer requestInitializer = request -> {
+                new HttpCredentialsAdapter(credential).initialize(request);
+                request.setConnectTimeout(CONNECT_TIMEOUT);
+                request.setReadTimeout(READ_TIMEOUT); // Khắc phục lỗi Read timed out
+            };
+
+            Sheets sheets = new Sheets.Builder(transport, jsonFactory, requestInitializer)
                     .setApplicationName(applicationName)
                     .build();
             sheetsList.add(sheets);
 
-            Drive drive = new Drive.Builder(transport, jsonFactory, new HttpCredentialsAdapter(credential))
+            Drive drive = new Drive.Builder(transport, jsonFactory, requestInitializer)
                     .setApplicationName(applicationName)
                     .build();
             driveList.add(drive);
@@ -105,12 +115,18 @@ public class GoogleClientConfiguration {
                         .fromStream(Objects.requireNonNull(credentialsStream))
                         .createScoped(GLOBAL_SCOPES);
 
-                Sheets sheets = new Sheets.Builder(transport, jsonFactory, new HttpCredentialsAdapter(credential))
+                HttpRequestInitializer requestInitializer = request -> {
+                    new HttpCredentialsAdapter(credential).initialize(request);
+                    request.setConnectTimeout(CONNECT_TIMEOUT);
+                    request.setReadTimeout(READ_TIMEOUT); // Khắc phục lỗi Read timed out
+                };
+
+                Sheets sheets = new Sheets.Builder(transport, jsonFactory, requestInitializer)
                         .setApplicationName(applicationName)
                         .build();
                 sheetsList.add(sheets);
 
-                Drive drive = new Drive.Builder(transport, jsonFactory, new HttpCredentialsAdapter(credential))
+                Drive drive = new Drive.Builder(transport, jsonFactory, requestInitializer)
                         .setApplicationName(applicationName)
                         .build();
                 driveList.add(drive);

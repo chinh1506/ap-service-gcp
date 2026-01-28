@@ -131,45 +131,30 @@ public class Utilities {
     }
 
     public static List<List<Object>> transposeList(List<List<Object>> table, boolean removeSourceHeader) {
-        // 1. Kiểm tra null hoặc rỗng
         if (table == null || table.isEmpty()) {
             return new ArrayList<>();
         }
-
-        // 2. Xử lý loại bỏ Header
         List<List<Object>> dataToProcess;
         if (removeSourceHeader) {
-            // Nếu chỉ có 1 dòng (là header) mà đòi xóa -> trả về rỗng
             if (table.size() <= 1) {
                 return new ArrayList<>();
             }
-            // Cắt từ dòng 1 trở đi (bỏ dòng 0)
             dataToProcess = table.subList(1, table.size());
         } else {
-            // Giữ nguyên toàn bộ
             dataToProcess = table;
         }
-
-        // 3. Tìm số cột lớn nhất (để xử lý mảng lởm chởm - Jagged Array)
         int maxCols = 0;
         for (List<Object> row : dataToProcess) {
             if (row != null && row.size() > maxCols) {
                 maxCols = row.size();
             }
         }
-
-        // 4. Khởi tạo mảng kết quả
         List<List<Object>> transposed = new ArrayList<>();
         for (int i = 0; i < maxCols; i++) {
             transposed.add(new ArrayList<>());
         }
-
-        // 5. Xoay dữ liệu
         for (int colIndex = 0; colIndex < maxCols; colIndex++) { // Duyệt theo cột của bảng gốc
-            for (int rowIndex = 0; rowIndex < dataToProcess.size(); rowIndex++) { // Duyệt theo hàng
-                List<Object> row = dataToProcess.get(rowIndex);
-
-                // Lấy giá trị an toàn (tránh lỗi IndexOutOfBounds nếu dòng ngắn)
+            for (List<Object> row : dataToProcess) { // Duyệt theo hàng
                 Object value = null;
                 if (row != null && colIndex < row.size()) {
                     value = row.get(colIndex);
@@ -247,5 +232,22 @@ public class Utilities {
         }
 
         return remaining;
+    }
+
+    public int columnNameToNumber(String columnName) {
+        if (columnName == null || columnName.isEmpty()) {
+            throw new IllegalArgumentException("Tên cột không được để trống");
+        }
+
+        int result = 0;
+        String name = columnName.toUpperCase();
+        for (int i = 0; i < name.length(); i++) {
+            char c = name.charAt(i);
+            if (c < 'A' || c > 'Z') {
+                throw new IllegalArgumentException("Tên cột chứa ký tự không hợp lệ: " + c);
+            }
+            result = result * 26 + (c - 'A' + 1);
+        }
+        return result;
     }
 }

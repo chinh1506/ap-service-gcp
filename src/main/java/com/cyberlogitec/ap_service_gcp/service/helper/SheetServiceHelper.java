@@ -92,7 +92,6 @@ public class SheetServiceHelper {
     }
 
     public void clearRange(String spreadsheetId, String range) throws IOException {
-        // 3. Xóa cũ
         ClearValuesRequest clearRequest = new ClearValuesRequest();
         Utilities.retry(() -> {
             return this.getSheetsService().spreadsheets().values().clear(spreadsheetId, range, clearRequest).execute();
@@ -193,31 +192,12 @@ public class SheetServiceHelper {
 
             if (!userMails.isEmpty()) editors.setUsers(userMails);
             if (!groupMails.isEmpty()) editors.setGroups(groupMails);
-
-            // 2. Xử lý Chunking (Chia nhỏ mảng nếu > 30 mục)
             int chunkSize = 30;
-
             if (lockRanges == null || lockRanges.isEmpty()) return;
-
             for (int i = 0; i < lockRanges.size(); i += chunkSize) {
                 int end = Math.min(lockRanges.size(), i + chunkSize);
                 List<TargetRange> chunk = lockRanges.subList(i, end);
-
-                try {
-                    sendApiToProtect(targetSSID, chunk, editors);
-                    TimeUnit.MILLISECONDS.sleep(1000);
-
-                } catch (GoogleJsonResponseException e) {
-                    // Xử lý lỗi "already has sheet protection"
-                    if (e.getDetails() != null && e.getDetails().getMessage().contains("already has sheet protection")) {
-                        System.err.println("Bỏ qua lỗi: Sheet đã được bảo vệ.");
-                        continue; // Bỏ qua và chạy chunk tiếp theo
-                    }
-                    throw e; // Ném lỗi khác
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    throw new IOException("Tiến trình bị gián đoạn", e);
-                }
+                sendApiToProtect(targetSSID, chunk, editors);
             }
         } catch (Exception e) {
             System.err.println("Failed with error: " + e.getMessage());
@@ -225,13 +205,8 @@ public class SheetServiceHelper {
         }
     }
 
-    /**
-     * Hàm helper thực hiện gửi Request lên Google API
-     */
     private void sendApiToProtect(String targetSSID, List<TargetRange> chunkRanges, Editors editors) throws IOException {
-
         List<Request> requests = new ArrayList<>();
-
         for (TargetRange rangeData : chunkRanges) {
             GridRange range = new GridRange()
                     .setSheetId(rangeData.getSheetId());
@@ -249,7 +224,6 @@ public class SheetServiceHelper {
         }
         BatchUpdateSpreadsheetRequest batchBody = new BatchUpdateSpreadsheetRequest()
                 .setRequests(requests);
-
         Utilities.retry(() ->
                         getSheetsService().spreadsheets().batchUpdate(targetSSID, batchBody).execute()
                 , 3);
@@ -265,27 +239,17 @@ public class SheetServiceHelper {
     }
 
 
-    public int removeAllProtections(Spreadsheet spreadsheet) throws IOException {
-
-//        Spreadsheet spreadsheet = sheetsService.spreadsheets().get(spreadsheetId)
-//                .setFields("sheets(protectedRanges(protectedRangeId))")
-//                .execute();
-        String spreadsheetId= spreadsheet.getSpreadsheetId();
-
+    public void removeAllProtections(Spreadsheet spreadsheet) throws IOException {
+        String spreadsheetId = spreadsheet.getSpreadsheetId();
         if (spreadsheet.getSheets() == null) {
-            return 0;
+            return;
         }
 
         List<Request> deleteRequests = new ArrayList<>();
-
-        // Duyệt qua từng Sheet
         for (Sheet sheet : spreadsheet.getSheets()) {
             List<ProtectedRange> protections = sheet.getProtectedRanges();
-
-            // Nếu sheet có protections
             if (protections != null && !protections.isEmpty()) {
                 for (ProtectedRange pr : protections) {
-                    // Tạo lệnh xóa cho từng Protected Range ID
                     DeleteProtectedRangeRequest deleteRequest = new DeleteProtectedRangeRequest()
                             .setProtectedRangeId(pr.getProtectedRangeId());
 
@@ -293,20 +257,120 @@ public class SheetServiceHelper {
                 }
             }
         }
-
-        // BƯỚC 2: Gửi lệnh Batch Update để xóa
         if (!deleteRequests.isEmpty()) {
             BatchUpdateSpreadsheetRequest batchRequest = new BatchUpdateSpreadsheetRequest()
                     .setRequests(deleteRequests);
 
             getSheetsService().spreadsheets().batchUpdate(spreadsheetId, batchRequest).execute();
 
-            System.out.println("Đã xóa " + deleteRequests.size() + " protected ranges trong file " + spreadsheetId);
-            return deleteRequests.size();
+            System.out.println("Deleted " + deleteRequests.size() + " protected ranges in file " + spreadsheetId);
         } else {
-            System.out.println("File không có protected range nào.");
-            return 0;
+            System.out.println("File don't have any protected ranges.");
         }
+    }
+
+    public void unhideColumns(String spreadsheetId, int sheetId, int startColumn, int endColumn) throws IOException {
+
+        DimensionRange dimensionRange = new DimensionRange()
+                .setSheetId(sheetId)
+                .setDimension("COLUMNS")
+                .setStartIndex(startColumn)
+                .setEndIndex(endColumn);
+
+        DimensionProperties properties = new DimensionProperties()
+                .setHiddenByUser(false);
+
+        UpdateDimensionPropertiesRequest updateRequest = new UpdateDimensionPropertiesRequest()
+                .setRange(dimensionRange)
+                .setProperties(properties)
+                .setFields("hiddenByUser");
+
+        BatchUpdateSpreadsheetRequest batchRequest = new BatchUpdateSpreadsheetRequest()
+                .setRequests(Collections.singletonList(new Request().setUpdateDimensionProperties(updateRequest)));
+
+        getSheetsService().spreadsheets().batchUpdate(spreadsheetId, batchRequest).execute();
+
+        System.out.println("Unaided columns from " + startColumn + " to " + (endColumn - 1) + " in sheet " + sheetId);
+    }
+
+    public void unhideSpecificColumns(String spreadsheetId, Map<Integer, List<Integer>> sheetIdToColumnIndices) throws IOException {
+        if (sheetIdToColumnIndices == null || sheetIdToColumnIndices.isEmpty()) {
+            return;
+        }
+        List<Request> allRequests = new ArrayList<>();
+        for (Map.Entry<Integer, List<Integer>> entry : sheetIdToColumnIndices.entrySet()) {
+            int sheetId = entry.getKey();
+            List<Integer> cols = entry.getValue();
+            if (cols == null || cols.isEmpty()) continue;
+            Collections.sort(cols);
+            int start = cols.get(0);
+            int prev = start;
+            for (int i = 1; i < cols.size(); i++) {
+                int current = cols.get(i);
+                if (current == prev + 1) {
+                    prev = current;
+                } else {
+                    allRequests.add(createUnhideRequest(sheetId, start, prev + 1));
+                    start = current;
+                    prev = current;
+                }
+            }
+            allRequests.add(createUnhideRequest(sheetId, start, prev + 1));
+        }
+
+        if (!allRequests.isEmpty()) {
+            BatchUpdateSpreadsheetRequest batchBody = new BatchUpdateSpreadsheetRequest()
+                    .setRequests(allRequests);
+            getSheetsService().spreadsheets().batchUpdate(spreadsheetId, batchBody).execute();
+            System.out.println("Sent " + allRequests.size() + " unhide requests for whole file.");
+        }
+    }
+
+    public void unhideSpecificRanges(String spreadsheetId, Map<Integer, List<Map<String, Integer>>> sheetIdToRanges) throws IOException {
+        if (sheetIdToRanges == null || sheetIdToRanges.isEmpty()) {
+            return;
+        }
+        List<Request> allRequests = new ArrayList<>();
+        for (Map.Entry<Integer, List<Map<String, Integer>>> entry : sheetIdToRanges.entrySet()) {
+
+            Integer sheetId = entry.getKey();
+            List<Map<String, Integer>> ranges = entry.getValue();
+
+            if (ranges == null || ranges.isEmpty()) continue;
+
+            for (Map<String, Integer> rangeMap : ranges) {
+                if (!rangeMap.containsKey("start") || !rangeMap.containsKey("end")) {
+                    continue;
+                }
+                Integer start = rangeMap.get("start");
+                Integer end = rangeMap.get("end");
+
+                allRequests.add(createUnhideRequest(sheetId, start, end));
+            }
+        }
+        if (!allRequests.isEmpty()) {
+            BatchUpdateSpreadsheetRequest batchBody = new BatchUpdateSpreadsheetRequest()
+                    .setRequests(allRequests);
+
+            getSheetsService().spreadsheets().batchUpdate(spreadsheetId, batchBody).execute();
+
+            System.out.println("Sent unhide requests for " + allRequests.size() + " ranges.");
+        }
+    }
+
+    private Request createUnhideRequest(int sheetId, int startIndex, int endIndex) {
+        DimensionRange dimensionRange = new DimensionRange()
+                .setSheetId(sheetId)
+                .setDimension("COLUMNS")
+                .setStartIndex(startIndex)
+                .setEndIndex(endIndex); // Exclusive
+        DimensionProperties properties = new DimensionProperties()
+                .setHiddenByUser(false); // Unhide
+        UpdateDimensionPropertiesRequest updateRequest = new UpdateDimensionPropertiesRequest()
+                .setRange(dimensionRange)
+                .setProperties(properties)
+                .setFields("hiddenByUser");
+        return new Request().setUpdateDimensionProperties(updateRequest);
     }
 
 
